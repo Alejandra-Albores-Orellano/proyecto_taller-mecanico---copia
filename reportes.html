@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Reportes</title>
+    <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+    <div id="sidebar"></div>
+    <div id="main-content">
+        <h2>Reportes Ejecutivos</h2>
+        <div class="form-row">
+            <div class="card" style="flex:1; text-align:center">
+                <h3>Ingresos Estimados</h3>
+                <h1 style="color:var(--success)" id="ingresos">$0</h1>
+                <small>(Basado en órdenes terminadas)</small>
+            </div>
+            <div class="card" style="flex:1; text-align:center">
+                <h3>Valor Inventario</h3>
+                <h1 style="color:var(--accent)" id="val-inv">$0</h1>
+            </div>
+        </div>
+        <div class="card">
+            <h3>Resumen de Órdenes</h3>
+            <table>
+                <thead><tr><th>Estado</th><th>Cantidad</th></tr></thead>
+                <tbody id="tbl-stats"></tbody>
+            </table>
+        </div>
+    </div>
+    <script src="js/app.js"></script>
+    <script>
+        SYSTEM.checkSecurity();
+        // Extra Check: Solo admin
+        if(SYSTEM.getActiveUser().role !== 'admin') window.location.href = 'index.html';
+
+        const ord = JSON.parse(localStorage.getItem('sv_ordenes')||'[]');
+        const inv = JSON.parse(localStorage.getItem('sv_inventario')||'[]');
+
+        // Ingresos (Simulado: $1000 por orden terminada)
+        const terminadas = ord.filter(o => o.estado === 'Terminado').length;
+        document.getElementById('ingresos').innerText = '$' + (terminadas * 1000);
+
+        // Valor Inv
+        let totalVal = inv.reduce((acc, item) => acc + (item.stock * item.precio), 0);
+        document.getElementById('val-inv').innerText = '$' + totalVal;
+
+        // Tabla Stats
+        const stats = { Pendiente:0, Proceso:0, Terminado:0 };
+        ord.forEach(o => { if(stats[o.estado] !== undefined) stats[o.estado]++ });
+        
+        const tbody = document.getElementById('tbl-stats');
+        for(let k in stats) {
+            tbody.innerHTML += `<tr><td>${k}</td><td>${stats[k]}</td></tr>`;
+        }
+    </script>
+</body>
+</html>

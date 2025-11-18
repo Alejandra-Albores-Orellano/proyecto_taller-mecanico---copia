@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Órdenes</title>
+    <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+    <div id="sidebar"></div>
+    <div id="main-content">
+        <h2>Órdenes de Trabajo</h2>
+
+        <div class="card form-creation-container">
+            <h3>Nueva Orden</h3>
+            <form id="formOrd">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Seleccionar Cliente</label>
+                        <select id="cliSel" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Servicio</label>
+                        <select id="svc">
+                            <option>Mantenimiento</option>
+                            <option>Diagnóstico</option>
+                            <option>Reparación</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Descripción de Falla</label>
+                    <textarea id="desc" rows="2" required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Generar Orden</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h3>Seguimiento</h3>
+            <table>
+                <thead><tr><th># Orden</th><th>Cliente</th><th>Vehículo</th><th>Falla</th><th>Estado</th><th>Acción</th></tr></thead>
+                <tbody id="tbl"></tbody>
+            </table>
+        </div>
+    </div>
+    <script src="js/app.js"></script>
+    <script>
+        SYSTEM.checkSecurity();
+        const activeUser = SYSTEM.getActiveUser();
+
+        // Cargar select de clientes
+        const clients = JSON.parse(localStorage.getItem('sv_clientes')||'[]');
+        const sel = document.getElementById('cliSel');
+        clients.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.nombre + '|' + c.auto; // Guardamos ambos datos simple
+            opt.text = c.nombre + ' - ' + c.auto;
+            sel.appendChild(opt);
+        });
+
+        const render = () => {
+            const db = JSON.parse(localStorage.getItem('sv_ordenes')||'[]');
+            const tbody = document.getElementById('tbl');
+            tbody.innerHTML = '';
+            
+            db.forEach((o, i) => {
+                // Lógica de Estado: Mecánico ve Select, otros ven Texto (o Select si admin)
+                let statusHTML = `<span class="badge st-${o.estado.toLowerCase()}">${o.estado}</span>`;
+                
+                // Si es mecánico o admin, permitimos cambiar estado
+                if(activeUser.role === 'mecanico' || activeUser.role === 'admin') {
+                    statusHTML = `
+                        <select onchange="updStat(${i}, this.value)" style="padding:4px; font-size:0.85rem">
+                            <option ${o.estado=='Pendiente'?'selected':''}>Pendiente</option>
+                            <option ${o.estado=='Proceso'?'selected':''}>Proceso</option>
+                            <option ${o.estado=='Terminado'?'selected':''}>Terminado</option>
+                        </select>
+                    `;
+                }
+
+                tbody.innerHTML += `<tr>
+                    <td>#${o.id}</td><td>${o.cliente}</td><td>${o.auto}</td><td>${o.falla}</td>
+                    <td>${statusHTML}</td>
+                    <td><button onclick="del(${i})" class="btn btn-danger btn-delete" style="padding:4px">X</button></td>
+                </tr>`;
+            });
+            SYSTEM.applyUIRestrictions(activeUser);
+        };
+
+        document.getElementById('formOrd').addEventListener('submit', e => {
+            e.preventDefault();
+            const [cli, car] = document.getElementById('cliSel').value.split('|');
+            const data = {
+                id: Math.floor(Math.random()*10000),
+                cliente: cli,
+                auto: car,
+                falla: document.getElementById('svc').value + ': ' + document.getElementById('desc').value,
+                estado: 'Pendiente'
+            };
+            const db = JSON.parse(localStorage.getItem('sv_ordenes')||'[]');
+            db.push(data);
+            localStorage.setItem('sv_ordenes', JSON.stringify(db));
+            render(); e.target.reset();
+        });
+
+        window.updStat = (i, val) => {
+            const db = JSON.parse(localStorage.getItem('sv_ordenes'));
+            db[i].estado = val;
+            localStorage.setItem('sv_ordenes', JSON.stringify(db));
+        };
+
+        window.del = i => {
+            if(confirm('Eliminar?')) {
+                const db = JSON.parse(localStorage.getItem('sv_ordenes'));
+                db.splice(i, 1);
+                localStorage.setItem('sv_ordenes', JSON.stringify(db));
+                render();
+            }
+        };
+        render();
+    </script>
+</body>
+</html>

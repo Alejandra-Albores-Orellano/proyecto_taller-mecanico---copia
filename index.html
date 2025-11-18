@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+    <div id="sidebar"></div>
+    <div id="main-content">
+        <h2>Panel Principal</h2>
+        <div class="card">
+            <h3>Bienvenido al Sistema</h3>
+            <p>Seleccione una opción del menú para comenzar.</p>
+        </div>
+        <div class="form-row">
+            <div class="card" style="flex:1; border-left:5px solid var(--accent)">
+                <h4>Órdenes Activas</h4>
+                <h1 id="count-ordenes">0</h1>
+            </div>
+            <div class="card" style="flex:1; border-left:5px solid var(--success)">
+                <h4>Clientes</h4>
+                <h1 id="count-clientes">0</h1>
+            </div>
+        </div>
+    </div>
+    <script src="js/app.js"></script>
+    <script>
+        SYSTEM.checkSecurity();
+        // Contadores simples
+        document.getElementById('count-ordenes').innerText = JSON.parse(localStorage.getItem('sv_ordenes')||'[]').length;
+        document.getElementById('count-clientes').innerText = JSON.parse(localStorage.getItem('sv_clientes')||'[]').length;
+    </script>
+</body>
+</html>

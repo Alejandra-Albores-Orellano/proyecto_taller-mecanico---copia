@@ -1,0 +1,57 @@
+/* css/estilos.css */
+:root {
+    --primary: #34495e;    /* Gris Azulado Oscuro (Sidebar) */
+    --accent: #3498db;     /* Azul Profesional (Botones) */
+    --bg: #ecf0f1;         /* Gris Muy Claro (Fondo) */
+    --text: #2c3e50;       /* Texto Oscuro */
+    --danger: #e74c3c;     /* Rojo Alertas/Borrar */
+    --success: #27ae60;    /* Verde */
+    --white: #ffffff;
+}
+
+body { font-family: 'Segoe UI', sans-serif; margin: 0; background-color: var(--bg); display: flex; height: 100vh; overflow: hidden; }
+
+/* Sidebar */
+#sidebar { width: 250px; background-color: var(--primary); color: var(--white); display: flex; flex-direction: column; flex-shrink: 0; }
+#sidebar .brand { padding: 20px; font-size: 1.2rem; font-weight: bold; background: rgba(0,0,0,0.2); text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); }
+#sidebar .user-panel { padding: 20px; font-size: 0.9rem; background: rgba(0,0,0,0.1); border-bottom: 1px solid rgba(255,255,255,0.05); }
+#sidebar nav { flex: 1; overflow-y: auto; padding-top: 10px; }
+#sidebar nav a { display: block; padding: 12px 20px; color: #bdc3c7; text-decoration: none; transition: 0.2s; border-left: 4px solid transparent; }
+#sidebar nav a:hover, #sidebar nav a.active { background: rgba(255,255,255,0.05); color: var(--white); border-left-color: var(--accent); }
+#sidebar .logout { color: #e74c3c !important; margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); }
+
+/* Contenido */
+#main-content { flex: 1; overflow-y: auto; padding: 30px; color: var(--text); }
+h2 { border-bottom: 2px solid #dfe6e9; padding-bottom: 10px; margin-bottom: 20px; color: var(--primary); }
+
+/* Componentes */
+.card { background: var(--white); border-radius: 6px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; }
+.form-row { display: flex; gap: 15px; margin-bottom: 15px; }
+.form-group { flex: 1; }
+label { display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 5px; color: #7f8c8d; }
+input, select, textarea { width: 100%; padding: 8px; border: 1px solid #bdc3c7; border-radius: 4px; box-sizing: border-box; }
+input:focus, select:focus { border-color: var(--accent); outline: none; }
+
+/* Tablas */
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+th { text-align: left; background: #f8f9fa; padding: 10px; color: var(--primary); border-bottom: 2px solid #dfe6e9; }
+td { padding: 10px; border-bottom: 1px solid #ecf0f1; }
+tr:hover { background-color: #fbfbfb; }
+
+/* Botones */
+.btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; color: white; font-size: 0.9rem; }
+.btn-primary { background: var(--accent); } .btn-primary:hover { background: #2980b9; }
+.btn-danger { background: var(--danger); } .btn-danger:hover { background: #c0392b; }
+
+/* Utilidades de Estado */
+.badge { padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; }
+.st-pendiente { background: #ffeaa7; color: #d35400; }
+.st-proceso { background: #81ecec; color: #0097e6; }
+.st-terminado { background: #55efc4; color: #00b894; }
+
+/* Login Específico */
+body.login-body { background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%); align-items: center; justify-content: center; }
+.login-card { width: 350px; background: white; padding: 40px; border-radius: 8px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+
+/* Clases para Control de Acceso (JS las manipula) */
+.hidden { display: none !important; }
