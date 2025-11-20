@@ -8,31 +8,51 @@
 <body>
     <div id="sidebar"></div>
     <div id="main-content">
-        <h2>Panel de Control</h2>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2>Panel de Control</h2>
+            <div id="adminTools" style="display:none;">
+                <button onclick="reiniciarSistema()" class="btn btn-danger">
+                    ⚠️ Reiniciar Base de Datos (Borrar Todo)
+                </button>
+            </div>
+        </div>
+        
         <div class="form-row">
             <div class="card card-accent form-col">
                 <h3>Órdenes Pendientes</h3>
                 <h1 id="kpi-ord" style="font-size:3rem; margin:10px 0; color:#e67e22">0</h1>
-                <small>Requieren atención</small>
             </div>
             <div class="card card-accent form-col">
-                <h3>Clientes Registrados</h3>
+                <h3>Clientes</h3>
                 <h1 id="kpi-cli" style="font-size:3rem; margin:10px 0; color:#3498db">0</h1>
-                <small>Base de datos activa</small>
             </div>
             <div class="card card-accent form-col">
-                <h3>Alertas Inventario</h3>
+                <h3>Alertas Stock</h3>
                 <h1 id="kpi-stk" style="font-size:3rem; margin:10px 0; color:#e74c3c">0</h1>
-                <small>Refacciones con stock bajo</small>
             </div>
         </div>
     </div>
     <script src="js/app.js"></script>
     <script>
         APP.checkAuth();
+        const session = APP.getSession();
+
+        // Mostrar botón de Reset solo a Admin
+        if(session.rol === 1) {
+            document.getElementById('adminTools').style.display = 'block';
+        }
+
         document.getElementById('kpi-ord').innerText = APP.DAO.getOrders().filter(o => o.idEstado !== 'Terminado').length;
         document.getElementById('kpi-cli').innerText = APP.DAO.getClients().length;
         document.getElementById('kpi-stk').innerText = APP.DAO.getInventory().filter(i => i.stock <= i.min).length;
+
+        function reiniciarSistema() {
+            if(confirm("⚠️ PELIGRO ⚠️\n¿Estás seguro de borrar TODA la información?\nEsto eliminará clientes, vehículos y órdenes. Se restaurarán los usuarios por defecto.")) {
+                APP.resetDB();
+                alert("Sistema reiniciado correctamente.");
+                location.reload();
+            }
+        }
     </script>
 </body>
 </html>

@@ -1,7 +1,5 @@
-// js/app.js
-
 const APP = {
-    // Configuración de Roles
+    // Roles
     ROLES: {
         ADMIN: { id: 1, nombre: 'Administrador', perm: 'all' },
         RECEPCION: { id: 2, nombre: 'Recepción', perm: 'create_orders' },
@@ -11,29 +9,37 @@ const APP = {
     // --- 1. INICIALIZACIÓN ---
     initDB: function() {
         if(!localStorage.getItem('st_init')) {
-            const usuarios = [
-                { id: 1, user: 'admin', pass: '123', nombre: 'Ing. Trujillo', rol: 1 },
-                { id: 2, user: 'recepcion', pass: '123', nombre: 'Abril Guzmán', rol: 2 },
-                { id: 3, user: 'mecanico', pass: '123', nombre: 'José Herrera', rol: 3 }
-            ];
-            localStorage.setItem('st_usuarios', JSON.stringify(usuarios));
-            localStorage.setItem('st_clientes', JSON.stringify([]));
-            localStorage.setItem('st_vehiculos', JSON.stringify([]));
-            localStorage.setItem('st_ordenes', JSON.stringify([])); 
-            localStorage.setItem('st_asignaciones', JSON.stringify([])); 
-            localStorage.setItem('st_refacciones', JSON.stringify([
-                { id: 1, sku: 'ACE-01', nombre: 'Aceite Sintético', stock: 20, min: 5, precio: 450 },
-                { id: 2, sku: 'FIL-01', nombre: 'Filtro Aire', stock: 3, min: 5, precio: 150 }
-            ]));
-            localStorage.setItem('st_init', 'true');
+            this.resetDB(); // Usamos la función de reset para iniciar
         }
+    },
+
+    // Función para REINICIAR la base de datos (Solo Admin)
+    resetDB: function() {
+        const usuarios = [
+            { id: 1, user: 'admin', pass: '123', nombre: 'Ing. Trujillo', rol: 1 },
+            { id: 2, user: 'recepcion', pass: '123', nombre: 'Abril Guzmán', rol: 2 },
+            { id: 3, user: 'mecanico', pass: '123', nombre: 'José Herrera', rol: 3 }
+        ];
+        
+        localStorage.clear(); // Borra todo lo sucio
+        
+        localStorage.setItem('st_usuarios', JSON.stringify(usuarios));
+        localStorage.setItem('st_clientes', JSON.stringify([]));
+        localStorage.setItem('st_vehiculos', JSON.stringify([]));
+        localStorage.setItem('st_ordenes', JSON.stringify([])); 
+        localStorage.setItem('st_asignaciones', JSON.stringify([])); 
+        localStorage.setItem('st_refacciones', JSON.stringify([
+            { id: 1, sku: 'ACE-01', nombre: 'Aceite Sintético', stock: 20, min: 5, precio: 450 },
+            { id: 2, sku: 'FIL-01', nombre: 'Filtro Aire', stock: 3, min: 5, precio: 150 }
+        ]));
+        localStorage.setItem('st_init', 'true');
     },
 
     // --- 2. AUTENTICACIÓN ---
     getSession: () => JSON.parse(sessionStorage.getItem('st_session')),
     
     checkAuth: function() {
-        this.initDB();
+        if(!localStorage.getItem('st_init')) this.initDB();
         const s = this.getSession();
         if(!s && !location.pathname.includes('login.html')) location.href = 'login.html';
         if(s) this.renderSidebar(s);
@@ -54,7 +60,7 @@ const APP = {
         location.href = 'login.html';
     },
 
-    // --- 3. INTERFAZ DE USUARIO (UI) ---
+    // --- 3. UI SIDEBAR ---
     renderSidebar: function(user) {
         const sb = document.getElementById('sidebar');
         if(!sb) return;
@@ -66,7 +72,6 @@ const APP = {
         menu += `<a href="ordenes.html">🔧 Órdenes</a>`;
         menu += `<a href="inventario.html">📦 Inventario</a>`;
         
-        // Enlaces de Admin
         if(user.rol === 1) {
             menu += `<a href="reportes.html">📈 Reportes</a>`;
             menu += `<a href="usuarios.html" style="color:#3498db">🔐 Usuarios</a>`;
@@ -83,13 +88,54 @@ const APP = {
         `;
     },
 
-    // --- 4. DAO (Data Access Object) - CRUD COMPLETO ---
+    // --- 4. DAO (VALIDACIONES Y CRUD) ---
     DAO: {
-        // USUARIOS
+        // CLIENTES (VALIDACIÓN DE DUPLICADOS)
+        createClient: (data) => {
+            const db = JSON.parse(localStorage.getItem('st_clientes'));
+            
+            // VALIDACIÓN: No permitir nombres duplicados
+            const existe = db.find(c => c.nombre.toLowerCase() === data.nombre.toLowerCase());
+            if(existe) return { success: false, msg: 'Error: El cliente ya existe.' };
+
+            data.id = Date.now();
+            db.push(data);
+            localStorage.setItem('st_clientes', JSON.stringify(db));
+            return { success: true, data: data };
+        },
+        getClients: () => JSON.parse(localStorage.getItem('st_clientes')),
+        deleteClient: (id) => {
+            let dbCli = JSON.parse(localStorage.getItem('st_clientes'));
+            dbCli = dbCli.filter(c => c.id !== id);
+            localStorage.setItem('st_clientes', JSON.stringify(dbCli));
+            
+            // Borrar vehículos en cascada
+            let dbVeh = JSON.parse(localStorage.getItem('st_vehiculos'));
+            dbVeh = dbVeh.filter(v => v.idCliente !== id);
+            localStorage.setItem('st_vehiculos', JSON.stringify(dbVeh));
+            return true;
+        },
+
+        // VEHÍCULOS (VALIDACIÓN DE PLACAS)
+        createVehicle: (data) => {
+            const db = JSON.parse(localStorage.getItem('st_vehiculos'));
+            
+            // VALIDACIÓN: No permitir placas duplicadas
+            const existe = db.find(v => v.placas.toUpperCase() === data.placas.toUpperCase());
+            if(existe) return { success: false, msg: 'Error: Las placas ya están registradas en otro vehículo.' };
+
+            data.id = Date.now() + 1;
+            db.push(data);
+            localStorage.setItem('st_vehiculos', JSON.stringify(db));
+            return { success: true, data: data };
+        },
+        getVehicles: () => JSON.parse(localStorage.getItem('st_vehiculos')),
+
+        // USUARIOS (VALIDACIÓN)
         getUsers: () => JSON.parse(localStorage.getItem('st_usuarios')),
         createUser: (data) => {
             let db = JSON.parse(localStorage.getItem('st_usuarios'));
-            if(db.find(u => u.user === data.user)) return { success: false, msg: 'Usuario duplicado.' };
+            if(db.find(u => u.user === data.user)) return { success: false, msg: 'El usuario ya existe.' };
             data.id = Date.now();
             db.push(data);
             localStorage.setItem('st_usuarios', JSON.stringify(db));
@@ -103,43 +149,19 @@ const APP = {
             return { success: true, msg: 'Usuario eliminado.' };
         },
 
-        // CLIENTES (Y VEHÍCULOS ASOCIADOS)
-        createClient: (data) => {
-            const db = JSON.parse(localStorage.getItem('st_clientes'));
-            data.id = Date.now();
-            db.push(data);
-            localStorage.setItem('st_clientes', JSON.stringify(db));
-            return data;
-        },
-        getClients: () => JSON.parse(localStorage.getItem('st_clientes')),
-        deleteClient: (id) => {
-            // Borrar cliente
-            let dbCli = JSON.parse(localStorage.getItem('st_clientes'));
-            dbCli = dbCli.filter(c => c.id !== id);
-            localStorage.setItem('st_clientes', JSON.stringify(dbCli));
-            
-            // Borrar vehículos asociados (Integridad Referencial simulada)
-            let dbVeh = JSON.parse(localStorage.getItem('st_vehiculos'));
-            dbVeh = dbVeh.filter(v => v.idCliente !== id);
-            localStorage.setItem('st_vehiculos', JSON.stringify(dbVeh));
-            return true;
-        },
-
-        // VEHÍCULOS
-        createVehicle: (data) => {
-            const db = JSON.parse(localStorage.getItem('st_vehiculos'));
-            data.id = Date.now() + 1;
-            db.push(data);
-            localStorage.setItem('st_vehiculos', JSON.stringify(db));
-            return data;
-        },
-        getVehicles: () => JSON.parse(localStorage.getItem('st_vehiculos')),
-
-        // ÓRDENES
+        // ÓRDENES (ID SECUENCIAL 1, 2, 3...)
         createOrder: (data) => {
             const db = JSON.parse(localStorage.getItem('st_ordenes'));
+            
+            // ID Secuencial
+            let newId = 1;
+            if (db.length > 0) {
+                const maxId = db.reduce((max, order) => order.id > max ? order.id : max, 0);
+                newId = (maxId > 999999) ? 1 : maxId + 1;
+            }
+
             const order = {
-                id: Date.now(),
+                id: newId,
                 idVehiculo: data.idVehiculo,
                 idEstado: 'Pendiente', 
                 falla: data.falla,
@@ -152,6 +174,7 @@ const APP = {
             const asigs = JSON.parse(localStorage.getItem('st_asignaciones'));
             asigs.push({ idOrden: order.id, idMecanico: null, observaciones: '' });
             localStorage.setItem('st_asignaciones', JSON.stringify(asigs));
+            
             return order;
         },
         getOrders: () => {
@@ -185,11 +208,12 @@ const APP = {
             return true;
         },
 
-        // INVENTARIO (REFACCIONES)
+        // INVENTARIO (ACTUALIZACIÓN STOCK)
         getInventory: () => JSON.parse(localStorage.getItem('st_refacciones')),
         createProduct: (p) => {
             let db = JSON.parse(localStorage.getItem('st_refacciones')) || [];
             const index = db.findIndex(item => item.sku === p.sku);
+
             if (index !== -1) {
                 db[index].stock = parseInt(db[index].stock) + parseInt(p.stock);
                 db[index].nombre = p.nombre;

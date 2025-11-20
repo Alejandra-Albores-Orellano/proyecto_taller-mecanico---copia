@@ -8,36 +8,27 @@
 <body>
     <div id="sidebar"></div>
     <div id="main-content">
-        <h2>Gestión de Clientes y Vehículos</h2>
-        
+        <h2>Clientes y Vehículos</h2>
         <div class="card" id="panelAgregar">
-            <h3>Registrar Nuevo Cliente</h3>
+            <h3>Registrar Nuevo</h3>
             <form id="formCli">
                 <div class="form-row">
-                    <div class="form-col"><label>Nombre Completo</label><input type="text" id="nom" required></div>
+                    <div class="form-col"><label>Nombre</label><input type="text" id="nom" required></div>
                     <div class="form-col"><label>Teléfono</label><input type="text" id="tel" required></div>
                 </div>
-                <h4 style="margin-top:20px; color:#7f8c8d">Datos del Vehículo</h4>
+                <h4 style="margin-top:15px;color:#777">Datos Vehículo</h4>
                 <div class="form-row">
-                    <div class="form-col"><label>Marca y Modelo</label><input type="text" id="mod" required></div>
-                    <div class="form-col"><label>Placas</label><input type="text" id="pla" required></div>
+                    <div class="form-col"><label>Marca/Modelo</label><input type="text" id="mod" required></div>
+                    <div class="form-col"><label>Placas</label><input type="text" id="pla" onkeyup="this.value=this.value.toUpperCase()" required></div>
                     <div class="form-col"><label>Color</label><input type="text" id="col" required></div>
                 </div>
-                <button class="btn btn-primary" style="margin-top:20px">Guardar Registro</button>
+                <button class="btn btn-primary" style="margin-top:20px">Guardar</button>
             </form>
         </div>
-
         <div class="card">
             <h3>Directorio</h3>
             <table>
-                <thead>
-                    <tr>
-                        <th>Cliente</th>
-                        <th>Teléfono</th>
-                        <th>Vehículo</th>
-                        <th>Placas</th>
-                        <th>Acciones</th> </tr>
-                </thead>
+                <thead><tr><th>Cliente</th><th>Teléfono</th><th>Vehículo</th><th>Placas</th><th>Acción</th></tr></thead>
                 <tbody id="tbody"></tbody>
             </table>
         </div>
@@ -46,60 +37,57 @@
     <script>
         APP.checkAuth();
         const session = APP.getSession();
-
-        // Si es mecánico, ocultamos el formulario de agregar (Solo lectura)
         if(session.rol === 3) document.getElementById('panelAgregar').style.display = 'none';
 
         function render() {
-            const list = APP.DAO.getClients();
-            const vehs = APP.DAO.getVehicles();
             const tbody = document.getElementById('tbody');
             tbody.innerHTML = '';
+            const list = APP.DAO.getClients();
+            const vehs = APP.DAO.getVehicles();
             
             list.forEach(c => {
                 const v = vehs.find(x => x.idCliente === c.id) || {};
-                
-                // BOTÓN ELIMINAR: Solo visible para ADMIN (rol 1)
-                let deleteBtn = '';
-                if (session.rol === 1) {
-                    deleteBtn = `<button onclick="del(${c.id})" class="btn btn-danger btn-sm">Eliminar</button>`;
-                } else {
-                    deleteBtn = '<small style="color:#ccc">--</small>';
-                }
-
-                tbody.innerHTML += `<tr>
-                    <td>${c.nombre}</td>
-                    <td>${c.telefono}</td>
-                    <td>${v.modelo} (${v.color})</td>
-                    <td><span class="badge bg-process">${v.placas}</span></td>
-                    <td>${deleteBtn}</td>
-                </tr>`;
+                let btn = session.rol === 1 ? `<button onclick="del(${c.id})" class="btn btn-danger btn-sm">Eliminar</button>` : '--';
+                tbody.innerHTML += `<tr><td>${c.nombre}</td><td>${c.telefono}</td><td>${v.modelo}</td><td><span class="badge bg-process">${v.placas}</span></td><td>${btn}</td></tr>`;
             });
         }
 
         document.getElementById('formCli').onsubmit = (e) => {
             e.preventDefault();
-            const cli = APP.DAO.createClient({ 
+            
+            // 1. Intentar crear Cliente
+            const resCli = APP.DAO.createClient({ 
                 nombre: document.getElementById('nom').value,
                 telefono: document.getElementById('tel').value 
             });
-            APP.DAO.createVehicle({ 
-                idCliente: cli.id, 
+
+            if(!resCli.success) {
+                alert(resCli.msg); // Error: Cliente duplicado
+                return;
+            }
+
+            // 2. Intentar crear Vehículo
+            const resVeh = APP.DAO.createVehicle({ 
+                idCliente: resCli.data.id, 
                 modelo: document.getElementById('mod').value, 
-                placas: document.getElementById('pla').value,
+                placas: document.getElementById('pla').value.toUpperCase(),
                 color: document.getElementById('col').value
             });
+
+            if(!resVeh.success) {
+                alert(resVeh.msg); // Error: Placas duplicadas
+                // Rollback: Borrar el cliente creado porque falló el vehículo
+                APP.DAO.deleteClient(resCli.data.id);
+                return;
+            }
+
+            alert('Registro exitoso');
             e.target.reset(); render();
         };
 
-        // Función Eliminar
         window.del = (id) => {
-            if(confirm('¿Eliminar Cliente y sus Vehículos?')) {
-                APP.DAO.deleteClient(id);
-                render();
-            }
+            if(confirm('¿Eliminar Cliente y Vehículo?')) { APP.DAO.deleteClient(id); render(); }
         };
-
         render();
     </script>
 </body>
