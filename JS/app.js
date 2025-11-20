@@ -1,3 +1,5 @@
+// js/app.js
+
 const APP = {
     // Configuración de Roles
     ROLES: {
@@ -6,21 +8,19 @@ const APP = {
         MECANICO: { id: 3, nombre: 'Mecánico', perm: 'execute_orders' }
     },
 
-    // --- 1. INICIALIZACIÓN DE BASE DE DATOS SIMULADA ---
+    // --- 1. INICIALIZACIÓN ---
     initDB: function() {
-        // Si no existen datos, crear estructura base (Semilla)
         if(!localStorage.getItem('st_init')) {
             const usuarios = [
                 { id: 1, user: 'admin', pass: '123', nombre: 'Ing. Trujillo', rol: 1 },
                 { id: 2, user: 'recepcion', pass: '123', nombre: 'Abril Guzmán', rol: 2 },
                 { id: 3, user: 'mecanico', pass: '123', nombre: 'José Herrera', rol: 3 }
             ];
-            // Tablas basadas en DER
             localStorage.setItem('st_usuarios', JSON.stringify(usuarios));
             localStorage.setItem('st_clientes', JSON.stringify([]));
             localStorage.setItem('st_vehiculos', JSON.stringify([]));
-            localStorage.setItem('st_ordenes', JSON.stringify([])); // Tabla OrdenDeTrabajo
-            localStorage.setItem('st_asignaciones', JSON.stringify([])); // Tabla AsignacionOrden
+            localStorage.setItem('st_ordenes', JSON.stringify([])); 
+            localStorage.setItem('st_asignaciones', JSON.stringify([])); 
             localStorage.setItem('st_refacciones', JSON.stringify([
                 { id: 1, sku: 'ACE-01', nombre: 'Aceite Sintético', stock: 20, min: 5, precio: 450 },
                 { id: 2, sku: 'FIL-01', nombre: 'Filtro Aire', stock: 3, min: 5, precio: 150 }
@@ -62,7 +62,7 @@ const APP = {
         const rolName = Object.values(this.ROLES).find(r => r.id === user.rol).nombre;
         
         let menu = `<a href="index.html">📊 Dashboard</a>`;
-        if(user.rol !== 3) menu += `<a href="clientes.html">👥 Clientes</a>`; // Mecánico no gestiona clientes
+        if(user.rol !== 3) menu += `<a href="clientes.html">👥 Clientes</a>`; 
         menu += `<a href="ordenes.html">🔧 Órdenes</a>`;
         menu += `<a href="inventario.html">📦 Inventario</a>`;
         
@@ -103,21 +103,20 @@ const APP = {
         },
         getVehicles: () => JSON.parse(localStorage.getItem('st_vehiculos')),
 
-        // ÓRDENES DE TRABAJO (Estructura Compleja según DER)
+        // ÓRDENES
         createOrder: (data) => {
             const db = JSON.parse(localStorage.getItem('st_ordenes'));
             const order = {
                 id: Date.now(),
                 idVehiculo: data.idVehiculo,
-                idEstado: 'Pendiente', // EstadoGeneral
-                falla: data.falla,     // Parte de Recepción
+                idEstado: 'Pendiente', 
+                falla: data.falla,
                 fecha: new Date().toISOString().split('T')[0],
                 monto: 0
             };
             db.push(order);
             localStorage.setItem('st_ordenes', JSON.stringify(db));
             
-            // Crear Asignación Vacía (Tabla AsignacionOrden)
             const asigs = JSON.parse(localStorage.getItem('st_asignaciones'));
             asigs.push({ idOrden: order.id, idMecanico: null, observaciones: '' });
             localStorage.setItem('st_asignaciones', JSON.stringify(asigs));
@@ -127,21 +126,18 @@ const APP = {
         getOrders: () => {
             const orders = JSON.parse(localStorage.getItem('st_ordenes'));
             const asigs = JSON.parse(localStorage.getItem('st_asignaciones'));
-            // JOIN simulado
             return orders.map(o => {
                 const a = asigs.find(x => x.idOrden === o.id) || {};
                 return { ...o, observacionesMecanico: a.observaciones };
             });
         },
         updateOrderMechanic: (idOrden, obs, nuevoEstado) => {
-            // Actualizar Orden (Estado)
             const orders = JSON.parse(localStorage.getItem('st_ordenes'));
             const idxO = orders.findIndex(o => o.id === idOrden);
             if(idxO > -1) {
                 orders[idxO].idEstado = nuevoEstado;
                 localStorage.setItem('st_ordenes', JSON.stringify(orders));
             }
-            // Actualizar Asignacion (Bitácora)
             const asigs = JSON.parse(localStorage.getItem('st_asignaciones'));
             const idxA = asigs.findIndex(a => a.idOrden === idOrden);
             if(idxA > -1) {
@@ -157,14 +153,36 @@ const APP = {
             localStorage.setItem('st_ordenes', JSON.stringify(db));
         },
 
-        // INVENTARIO
+        // --- CORRECCIÓN EN INVENTARIO ---
         getInventory: () => JSON.parse(localStorage.getItem('st_refacciones')),
+        
         createProduct: (p) => {
-            const db = JSON.parse(localStorage.getItem('st_refacciones'));
-            p.id = Date.now();
-            db.push(p);
-            localStorage.setItem('st_refacciones', JSON.stringify(db));
-            return p;
+            let db = JSON.parse(localStorage.getItem('st_refacciones')) || [];
+            
+            // 1. BUSCAR SI YA EXISTE EL SKU
+            const index = db.findIndex(item => item.sku === p.sku);
+
+            if (index !== -1) {
+                // >>> SI EXISTE: ACTUALIZAR (Sumar stock) <<<
+                
+                // Sumamos el stock actual más el nuevo ingreso
+                const nuevoStock = parseInt(db[index].stock) + parseInt(p.stock);
+                db[index].stock = nuevoStock;
+
+                // Actualizamos otros campos por si cambiaron (precio, nombre)
+                db[index].nombre = p.nombre;
+                db[index].precio = p.precio;
+                db[index].min = p.min;
+
+                localStorage.setItem('st_refacciones', JSON.stringify(db));
+                return { status: 'updated', data: db[index] };
+            } else {
+                // >>> NO EXISTE: CREAR NUEVO <<<
+                p.id = Date.now();
+                db.push(p);
+                localStorage.setItem('st_refacciones', JSON.stringify(db));
+                return { status: 'created', data: p };
+            }
         }
     }
 };
