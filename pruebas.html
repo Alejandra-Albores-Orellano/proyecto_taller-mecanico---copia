@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>QA Testing</title>
+    <title>Verificacion</title>
     <link rel="stylesheet" href="css/estilos.css">
     <style>.console { background:#2c3e50; color:#ecf0f1; padding:15px; font-family:monospace; height:400px; overflow-y:auto; border-radius:4px; }</style>
 </head>
@@ -32,14 +32,17 @@
             const logDiv = document.getElementById('log');
             logDiv.innerHTML = 'PREPARANDO ENTORNO DE PRUEBAS...<br>';
             
-            // --- PASO 0: LIMPIEZA PREVIA (RESET) ---
-            // Esto evita el error de "Ya existe" al correr la prueba varias veces.
+            // --- PASO 0: LIMPIEZA PREVIA (RESET DE TODAS LAS TABLAS) ---
             try {
                 localStorage.setItem('st_clientes', JSON.stringify([]));
                 localStorage.setItem('st_vehiculos', JSON.stringify([]));
                 localStorage.setItem('st_ordenes', JSON.stringify([]));
+                localStorage.setItem('st_recepciones', JSON.stringify([])); // Tabla nueva
                 localStorage.setItem('st_asignaciones', JSON.stringify([]));
-                // Reiniciamos inventario al estado base
+                localStorage.setItem('st_obs_int', JSON.stringify([])); // Tabla nueva
+                localStorage.setItem('st_obs_ext', JSON.stringify([])); // Tabla nueva
+                
+                // Reiniciamos inventario
                 localStorage.setItem('st_refacciones', JSON.stringify([
                     { id: 1, sku: 'ACE-01', nombre: 'Aceite Sintético', stock: 20, min: 5, precio: 450 }
                 ]));
@@ -49,8 +52,6 @@
             }
 
             try {
-                // PRUEBAS UNITARIAS (Componentes individuales)
-                
                 // 1. Auth
                 logger('1. Auth: Login Admin correcto', APP.login('admin', '123') === true);
                 
@@ -58,43 +59,51 @@
                 logger('2. Auth: Login Contraseña incorrecta rechazada', APP.login('admin', 'xxx') === false);
                 
                 // 3. Cliente
-                const cli = APP.DAO.createClient({ nombre: 'Test QA', telefono: '555' });
-                // Verificamos success porque ahora createClient devuelve un objeto {success, data}
+                const cli = APP.DAO.createClient({ nombre: 'Test QA', telefono: '555', rfc:'XAXX010101000', direccion:'Conocida' });
                 logger('3. CRUD Cliente: Creación exitosa', cli.success === true);
                 
                 // 4. Vehículo
-                // Nota: Usamos cli.data.id porque el objeto cambio en la version final
                 let vehId = 0;
                 if(cli.success) {
-                    const veh = APP.DAO.createVehicle({ idCliente: cli.data.id, modelo: 'QA Car', placas: 'QA-01', color: 'Blanco' });
+                    const veh = APP.DAO.createVehicle({ idCliente: cli.data.id, modelo: 'QA Car', placas: 'QA-01', color: 'Blanco', vin:'123456' });
                     logger('4. CRUD Vehículo: Creación exitosa', veh.success === true);
                     if(veh.success) vehId = veh.data.id;
                 } else {
-                    logger('4. CRUD Vehículo: Omitido por fallo anterior', false);
+                    logger('4. CRUD Vehículo: Omitido', false);
                 }
                 
                 // 5. Inventario
                 const inv = APP.DAO.createProduct({ sku: 'QA-PART', nombre:'Pieza Test', stock: 10, min: 2, precio: 100 });
                 logger('5. CRUD Inventario: Creación exitosa', inv.status === 'created');
                 
-                // 6. Orden
+                // 6. Orden (CON DATOS COMPLETOS PARA LA NUEVA BD)
                 let ordId = 0;
                 if(vehId > 0) {
-                    const ord = APP.DAO.createOrder({ idVehiculo: vehId, falla: 'Falla Test' });
+                    // CORRECCIÓN: Enviamos km, gas y obsExt que ahora son requeridos
+                    const ord = APP.DAO.createOrder({ 
+                        idVehiculo: vehId, 
+                        falla: 'Falla Test',
+                        km: 15000,
+                        gas: 'Lleno',
+                        obsExt: 'Sin daños visibles' 
+                    });
+                    
                     logger('6. Orden: Estado inicial es "Pendiente"', ord.idEstado === 'Pendiente');
                     ordId = ord.id;
                     
                     // 7. Lógica Mecánico
-                    const update = APP.DAO.updateOrderMechanic(ordId, 'Trabajo QA', 'En Proceso');
-                    logger('7. Lógica Mecánico: Actualización permitida', update === true);
+                    APP.DAO.updateOrderMechanic(ordId, 'Trabajo QA Finalizado', 'En Proceso');
                     
-                    // 8. Persistencia
-                    const ordCheck = APP.DAO.getOrders().find(o => o.id === ordId);
-                    logger('8. Persistencia: Estado cambiado a "En Proceso"', ordCheck.idEstado === 'En Proceso');
+                    // 8. Persistencia (USANDO getOrdersFull en lugar de getOrders)
+                    // CORRECCIÓN: La función ahora se llama getOrdersFull()
+                    const ordCheck = APP.DAO.getOrdersFull().find(o => o.id === ordId);
+                    
+                    const actualizacionCorrecta = (ordCheck.idEstado === 'En Proceso' && ordCheck.bitacora === 'Trabajo QA Finalizado');
+                    logger('7-8. Lógica Mecánico y Persistencia', actualizacionCorrecta);
                     
                     // 9. Eliminación
                     APP.DAO.deleteOrder(ordId);
-                    const delCheck = APP.DAO.getOrders().find(o => o.id === ordId);
+                    const delCheck = APP.DAO.getOrdersFull().find(o => o.id === ordId);
                     logger('9. Admin: Eliminación de orden correcta', delCheck === undefined);
                 } else {
                     logger('6-9. Órdenes: Omitido por fallo en vehículo', false);
@@ -107,25 +116,30 @@
                 // PRUEBA DE INTEGRACIÓN (Flujo Completo)
                 document.getElementById('log').innerHTML += '<br>PRUEBA DE INTEGRACIÓN<br>-----------------------<br>';
                 
-                // Flujo: Recepción Crea -> Mecánico Repara -> Sistema verifica
-                // Usamos nombres distintos para asegurar que no choque
                 const iCli = APP.DAO.createClient({nombre: 'Integration Flow', telefono: '999'});
                 if(iCli.success) {
                     const iVeh = APP.DAO.createVehicle({idCliente: iCli.data.id, modelo: 'IntCar', placas: 'INT-99', color:'Rojo'});
                     
                     if(iVeh.success) {
-                        const iOrd = APP.DAO.createOrder({idVehiculo: iVeh.data.id, falla: 'Ruido Motor'});
+                        // Crear Orden con datos completos
+                        const iOrd = APP.DAO.createOrder({
+                            idVehiculo: iVeh.data.id, 
+                            falla: 'Ruido Motor',
+                            km: 5000,
+                            gas: '1/2',
+                            obsExt: 'Golpe puerta derecha'
+                        });
                         
                         // Mecánico trabaja
                         APP.DAO.updateOrderMechanic(iOrd.id, 'Motor Reparado', 'Terminado');
                         
-                        // Verificación
-                        const finalOrd = APP.DAO.getOrders().find(o => o.id === iOrd.id);
+                        // Verificación (Usando getOrdersFull)
+                        const finalOrd = APP.DAO.getOrdersFull().find(o => o.id === iOrd.id);
                         
                         const integracionExitosa = (
                             finalOrd.idVehiculo === iVeh.data.id && 
                             finalOrd.idEstado === 'Terminado' && 
-                            finalOrd.observacionesMecanico === 'Motor Reparado'
+                            finalOrd.bitacora === 'Motor Reparado'
                         );
                         
                         logger('FLUJO COMPLETO: Cliente -> Vehículo -> Orden -> Reparación -> Cierre', integracionExitosa);

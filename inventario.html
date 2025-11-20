@@ -13,10 +13,10 @@
         <div class="card" id="panelAgregar">
             <h3>Entrada de Mercancía / Agregar</h3>
             <p style="color:#7f8c8d; font-size:0.9rem; margin-bottom:15px;">
-                <i class="fas fa-info-circle"></i> Si ingresa un SKU existente, el stock se actualizará.
+                <i class="fas fa-info-circle"></i> Si ingresa un ID existente, el stock se actualizará.
             </p>
             <form id="formInv" class="form-row">
-                <input class="form-col" type="text" id="sku" placeholder="SKU" onkeyup="this.value=this.value.toUpperCase()" required>
+                <input class="form-col" type="text" id="sku" placeholder="ID" onkeyup="this.value=this.value.toUpperCase()" required>
                 <input class="form-col" type="text" id="nom" placeholder="Producto" required>
                 <input class="form-col" type="number" id="stk" placeholder="Cantidad" min="1" required>
                 <input class="form-col" type="number" id="min" placeholder="Mínimo" required>
@@ -29,7 +29,7 @@
             <table>
                 <thead>
                     <tr>
-                        <th>SKU</th>
+                        <th>ID</th>
                         <th>Refacción</th>
                         <th>Stock</th>
                         <th>Estado</th>
