@@ -10,7 +10,7 @@
     <div id="main-content">
         <h2>Gestión de Clientes y Vehículos</h2>
         
-        <div class="card">
+        <div class="card" id="panelAgregar">
             <h3>Registrar Nuevo Cliente</h3>
             <form id="formCli">
                 <div class="form-row">
@@ -20,7 +20,7 @@
                 <h4 style="margin-top:20px; color:#7f8c8d">Datos del Vehículo</h4>
                 <div class="form-row">
                     <div class="form-col"><label>Marca y Modelo</label><input type="text" id="mod" required></div>
-                    <div class="form-col"><label>Placas (Únicas)</label><input type="text" id="pla" required></div>
+                    <div class="form-col"><label>Placas</label><input type="text" id="pla" required></div>
                     <div class="form-col"><label>Color</label><input type="text" id="col" required></div>
                 </div>
                 <button class="btn btn-primary" style="margin-top:20px">Guardar Registro</button>
@@ -30,7 +30,14 @@
         <div class="card">
             <h3>Directorio</h3>
             <table>
-                <thead><tr><th>Cliente</th><th>Teléfono</th><th>Vehículo</th><th>Placas</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>Cliente</th>
+                        <th>Teléfono</th>
+                        <th>Vehículo</th>
+                        <th>Placas</th>
+                        <th>Acciones</th> </tr>
+                </thead>
                 <tbody id="tbody"></tbody>
             </table>
         </div>
@@ -38,16 +45,38 @@
     <script src="js/app.js"></script>
     <script>
         APP.checkAuth();
+        const session = APP.getSession();
+
+        // Si es mecánico, ocultamos el formulario de agregar (Solo lectura)
+        if(session.rol === 3) document.getElementById('panelAgregar').style.display = 'none';
+
         function render() {
             const list = APP.DAO.getClients();
             const vehs = APP.DAO.getVehicles();
             const tbody = document.getElementById('tbody');
             tbody.innerHTML = '';
+            
             list.forEach(c => {
                 const v = vehs.find(x => x.idCliente === c.id) || {};
-                tbody.innerHTML += `<tr><td>${c.nombre}</td><td>${c.telefono}</td><td>${v.modelo} (${v.color})</td><td><span class="badge bg-process">${v.placas}</span></td></tr>`;
+                
+                // BOTÓN ELIMINAR: Solo visible para ADMIN (rol 1)
+                let deleteBtn = '';
+                if (session.rol === 1) {
+                    deleteBtn = `<button onclick="del(${c.id})" class="btn btn-danger btn-sm">Eliminar</button>`;
+                } else {
+                    deleteBtn = '<small style="color:#ccc">--</small>';
+                }
+
+                tbody.innerHTML += `<tr>
+                    <td>${c.nombre}</td>
+                    <td>${c.telefono}</td>
+                    <td>${v.modelo} (${v.color})</td>
+                    <td><span class="badge bg-process">${v.placas}</span></td>
+                    <td>${deleteBtn}</td>
+                </tr>`;
             });
         }
+
         document.getElementById('formCli').onsubmit = (e) => {
             e.preventDefault();
             const cli = APP.DAO.createClient({ 
@@ -62,6 +91,15 @@
             });
             e.target.reset(); render();
         };
+
+        // Función Eliminar
+        window.del = (id) => {
+            if(confirm('¿Eliminar Cliente y sus Vehículos?')) {
+                APP.DAO.deleteClient(id);
+                render();
+            }
+        };
+
         render();
     </script>
 </body>

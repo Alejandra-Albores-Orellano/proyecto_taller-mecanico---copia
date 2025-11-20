@@ -17,7 +17,6 @@ const APP = {
                 { id: 3, user: 'mecanico', pass: '123', nombre: 'José Herrera', rol: 3 }
             ];
             localStorage.setItem('st_usuarios', JSON.stringify(usuarios));
-            // ... (Resto de inicializaciones se mantienen igual)
             localStorage.setItem('st_clientes', JSON.stringify([]));
             localStorage.setItem('st_vehiculos', JSON.stringify([]));
             localStorage.setItem('st_ordenes', JSON.stringify([])); 
@@ -67,10 +66,10 @@ const APP = {
         menu += `<a href="ordenes.html">🔧 Órdenes</a>`;
         menu += `<a href="inventario.html">📦 Inventario</a>`;
         
-        // SOLO EL ADMINISTRADOR VE ESTOS ENLACES
+        // Enlaces de Admin
         if(user.rol === 1) {
             menu += `<a href="reportes.html">📈 Reportes</a>`;
-            menu += `<a href="usuarios.html" style="color:#3498db">🔐 Usuarios</a>`; // Nuevo enlace
+            menu += `<a href="usuarios.html" style="color:#3498db">🔐 Usuarios</a>`;
             menu += `<a href="pruebas.html" style="color:#f1c40f">🧪 Pruebas QA</a>`;
         }
 
@@ -84,37 +83,27 @@ const APP = {
         `;
     },
 
-    // --- 4. DAO (Data Access Object) - CRUD ---
+    // --- 4. DAO (Data Access Object) - CRUD COMPLETO ---
     DAO: {
-        // --- USUARIOS (NUEVO MÓDULO) ---
+        // USUARIOS
         getUsers: () => JSON.parse(localStorage.getItem('st_usuarios')),
-        
         createUser: (data) => {
             let db = JSON.parse(localStorage.getItem('st_usuarios'));
-            // Validar que usuario no exista
-            if(db.find(u => u.user === data.user)) {
-                return { success: false, msg: 'El nombre de usuario ya existe.' };
-            }
+            if(db.find(u => u.user === data.user)) return { success: false, msg: 'Usuario duplicado.' };
             data.id = Date.now();
             db.push(data);
             localStorage.setItem('st_usuarios', JSON.stringify(db));
-            return { success: true, msg: 'Usuario creado correctamente.' };
+            return { success: true, msg: 'Usuario creado.' };
         },
-
         deleteUser: (id) => {
             let db = JSON.parse(localStorage.getItem('st_usuarios'));
-            // Evitar que el admin se borre a sí mismo (Seguridad)
-            const session = APP.getSession();
-            if(id === session.id) {
-                return { success: false, msg: 'No puedes eliminar tu propia cuenta.' };
-            }
-            
+            if(id === APP.getSession().id) return { success: false, msg: 'No puedes borrarte a ti mismo.' };
             const newDb = db.filter(u => u.id !== id);
             localStorage.setItem('st_usuarios', JSON.stringify(newDb));
             return { success: true, msg: 'Usuario eliminado.' };
         },
 
-        // --- OTROS MÓDULOS (Se mantienen igual) ---
+        // CLIENTES (Y VEHÍCULOS ASOCIADOS)
         createClient: (data) => {
             const db = JSON.parse(localStorage.getItem('st_clientes'));
             data.id = Date.now();
@@ -123,7 +112,20 @@ const APP = {
             return data;
         },
         getClients: () => JSON.parse(localStorage.getItem('st_clientes')),
-        
+        deleteClient: (id) => {
+            // Borrar cliente
+            let dbCli = JSON.parse(localStorage.getItem('st_clientes'));
+            dbCli = dbCli.filter(c => c.id !== id);
+            localStorage.setItem('st_clientes', JSON.stringify(dbCli));
+            
+            // Borrar vehículos asociados (Integridad Referencial simulada)
+            let dbVeh = JSON.parse(localStorage.getItem('st_vehiculos'));
+            dbVeh = dbVeh.filter(v => v.idCliente !== id);
+            localStorage.setItem('st_vehiculos', JSON.stringify(dbVeh));
+            return true;
+        },
+
+        // VEHÍCULOS
         createVehicle: (data) => {
             const db = JSON.parse(localStorage.getItem('st_vehiculos'));
             data.id = Date.now() + 1;
@@ -133,6 +135,7 @@ const APP = {
         },
         getVehicles: () => JSON.parse(localStorage.getItem('st_vehiculos')),
 
+        // ÓRDENES
         createOrder: (data) => {
             const db = JSON.parse(localStorage.getItem('st_ordenes'));
             const order = {
@@ -179,17 +182,16 @@ const APP = {
             let db = JSON.parse(localStorage.getItem('st_ordenes'));
             db = db.filter(o => o.id !== id);
             localStorage.setItem('st_ordenes', JSON.stringify(db));
+            return true;
         },
 
+        // INVENTARIO (REFACCIONES)
         getInventory: () => JSON.parse(localStorage.getItem('st_refacciones')),
-        
         createProduct: (p) => {
             let db = JSON.parse(localStorage.getItem('st_refacciones')) || [];
             const index = db.findIndex(item => item.sku === p.sku);
-
             if (index !== -1) {
-                const nuevoStock = parseInt(db[index].stock) + parseInt(p.stock);
-                db[index].stock = nuevoStock;
+                db[index].stock = parseInt(db[index].stock) + parseInt(p.stock);
                 db[index].nombre = p.nombre;
                 db[index].precio = p.precio;
                 db[index].min = p.min;
@@ -201,6 +203,12 @@ const APP = {
                 localStorage.setItem('st_refacciones', JSON.stringify(db));
                 return { status: 'created', data: p };
             }
+        },
+        deleteProduct: (id) => {
+            let db = JSON.parse(localStorage.getItem('st_refacciones'));
+            db = db.filter(p => p.id !== id);
+            localStorage.setItem('st_refacciones', JSON.stringify(db));
+            return true;
         }
     }
 };

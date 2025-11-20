@@ -11,7 +11,7 @@
         <h2>Órdenes de Trabajo</h2>
         
         <div class="card" id="panelCreate">
-            <h3><span style="color:var(--accent)">+</span> Nueva Orden (Recepción)</h3>
+            <h3><span style="color:var(--accent)">+</span> Nueva Orden</h3>
             <form id="formOrd">
                 <div class="form-group">
                     <label>Seleccionar Vehículo</label>
@@ -28,7 +28,7 @@
         <div class="card">
             <h3>Tablero de Control</h3>
             <table>
-                <thead><tr><th>ID</th><th>Vehículo</th><th>Diagnóstico (Recepción)</th><th>Bitácora Mecánico</th><th>Estado</th><th>Acción</th></tr></thead>
+                <thead><tr><th>ID</th><th>Vehículo</th><th>Falla</th><th>Bitácora Mecánico</th><th>Estado</th><th>Acción</th></tr></thead>
                 <tbody id="tbody"></tbody>
             </table>
         </div>
@@ -38,6 +38,8 @@
         APP.checkAuth();
         const user = APP.getSession();
         
+        // Ocultar panel de crear SOLO si es mecánico (Rol 3)
+        // Admin (1) y Recepción (2) SÍ ven el panel.
         if(user.rol === 3) document.getElementById('panelCreate').style.display = 'none';
 
         // Cargar selects
@@ -53,21 +55,24 @@
             ords.forEach(o => {
                 const v = vehs.find(x => x.id == o.idVehiculo) || { modelo: '?', placas: '?' };
                 
-                // Lógica Visual según Rol
                 let bitacora = o.observacionesMecanico || '<em style="color:#999">Sin registros</em>';
                 let estadoBadge = `<span class="badge ${o.idEstado==='Terminado'?'bg-done':'bg-pending'}">${o.idEstado}</span>`;
                 let accion = '';
 
                 if(user.rol === 3) { // VISTA MECÁNICO
-                    bitacora = `<textarea id="txt-${o.id}" placeholder="Describir trabajo...">${o.observacionesMecanico || ''}</textarea>`;
+                    bitacora = `<textarea id="txt-${o.id}" placeholder="Trabajo...">${o.observacionesMecanico || ''}</textarea>`;
                     estadoBadge = `<select id="est-${o.id}">
                         <option ${o.idEstado=='Pendiente'?'selected':''}>Pendiente</option>
                         <option ${o.idEstado=='En Proceso'?'selected':''}>En Proceso</option>
                         <option ${o.idEstado=='Terminado'?'selected':''}>Terminado</option>
                     </select>`;
                     accion = `<button onclick="save(${o.id})" class="btn btn-success btn-sm">Guardar</button>`;
-                } else if (user.rol === 1) { // VISTA ADMIN
+                } 
+                else if (user.rol === 1) { // VISTA ADMIN (Rol 1) -> Botón Eliminar
                     accion = `<button onclick="del(${o.id})" class="btn btn-danger btn-sm">Eliminar</button>`;
+                }
+                else { // Recepción
+                    accion = '<small>Ver</small>';
                 }
 
                 tbody.innerHTML += `<tr>
@@ -91,14 +96,11 @@
         };
 
         window.save = (id) => {
-            APP.DAO.updateOrderMechanic(
-                id, 
-                document.getElementById(`txt-${id}`).value,
-                document.getElementById(`est-${id}`).value
-            );
-            alert('Avance registrado correctamente'); render();
+            APP.DAO.updateOrderMechanic(id, document.getElementById(`txt-${id}`).value, document.getElementById(`est-${id}`).value);
+            alert('Guardado'); render();
         };
 
+        // Eliminar Orden (Admin)
         window.del = (id) => {
             if(confirm('¿Eliminar esta orden?')) { APP.DAO.deleteOrder(id); render(); }
         };

@@ -9,22 +9,34 @@
     <div id="sidebar"></div>
     <div id="main-content">
         <h2>Control de Inventario</h2>
-        <div class="card">
+        
+        <div class="card" id="panelAgregar">
+            <h3>Entrada de Mercancía / Agregar</h3>
             <p style="color:#7f8c8d; font-size:0.9rem; margin-bottom:15px;">
-                <i class="fas fa-info-circle"></i> Si ingresa un SKU existente, el stock se sumará al actual automáticamente.
+                <i class="fas fa-info-circle"></i> Si ingresa un SKU existente, el stock se actualizará.
             </p>
             <form id="formInv" class="form-row">
-                <input class="form-col" type="text" id="sku" placeholder="SKU (Código)" onkeyup="this.value = this.value.toUpperCase();" required>
+                <input class="form-col" type="text" id="sku" placeholder="SKU" onkeyup="this.value=this.value.toUpperCase()" required>
                 <input class="form-col" type="text" id="nom" placeholder="Producto" required>
-                <input class="form-col" type="number" id="stk" placeholder="Cant. Entrada" min="1" required>
+                <input class="form-col" type="number" id="stk" placeholder="Cantidad" min="1" required>
                 <input class="form-col" type="number" id="min" placeholder="Mínimo" required>
                 <input class="form-col" type="number" id="pre" placeholder="Precio" required>
-                <button class="btn btn-primary">Guardar Entrada</button>
+                <button class="btn btn-primary">Guardar</button>
             </form>
         </div>
+
         <div class="card">
             <table>
-                <thead><tr><th>SKU</th><th>Refacción</th><th>Stock Actual</th><th>Estado</th><th>Precio</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>SKU</th>
+                        <th>Refacción</th>
+                        <th>Stock</th>
+                        <th>Estado</th>
+                        <th>Precio</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
                 <tbody id="tbody"></tbody>
             </table>
         </div>
@@ -32,58 +44,65 @@
     <script src="js/app.js"></script>
     <script>
         APP.checkAuth();
-        
+        const session = APP.getSession();
+
+        // Ocultar panel agregar si es mecánico
+        if(session.rol === 3) document.getElementById('panelAgregar').style.display = 'none';
+
         function render() {
             const tbody = document.getElementById('tbody');
             const inv = APP.DAO.getInventory();
             tbody.innerHTML = '';
             
-            // Ordenar para ver los recién modificados arriba (opcional)
-            // inv.sort((a, b) => b.id - a.id); 
-
             inv.forEach(i => {
-                // Alerta visual de stock
                 const stockVal = parseInt(i.stock);
                 const minVal = parseInt(i.min);
                 let status = '<span class="badge btn-success">OK</span>';
-                
                 if(stockVal === 0) status = '<span class="badge btn-danger">AGOTADO</span>';
                 else if(stockVal <= minVal) status = '<span class="badge bg-pending">BAJO STOCK</span>';
                 
+                // BOTÓN ELIMINAR: Solo Admin
+                let btnDelete = '';
+                if(session.rol === 1) {
+                    btnDelete = `<button onclick="del(${i.id})" class="btn btn-danger btn-sm">Eliminar</button>`;
+                } else {
+                    btnDelete = '<small>--</small>';
+                }
+
                 tbody.innerHTML += `<tr>
                     <td><b>${i.sku}</b></td>
                     <td>${i.nombre}</td>
                     <td style="font-size:1.1rem">${stockVal}</td>
                     <td>${status}</td>
                     <td>$${i.precio}</td>
+                    <td>${btnDelete}</td>
                 </tr>`;
             });
         }
 
         document.getElementById('formInv').onsubmit = (e) => {
             e.preventDefault();
-            
-            const skuInput = document.getElementById('sku').value.toUpperCase().trim();
-            
             const resultado = APP.DAO.createProduct({
-                sku: skuInput,
+                sku: document.getElementById('sku').value.toUpperCase(),
                 nombre: document.getElementById('nom').value,
-                stock: document.getElementById('stk').value, // Se enviará como string, el DAO lo parsea
+                stock: document.getElementById('stk').value,
                 min: document.getElementById('min').value,
                 precio: document.getElementById('pre').value
             });
-
-            // Feedback al usuario
-            if (resultado.status === 'updated') {
-                alert(`✅ PRODUCTO ACTUALIZADO\nSe sumó el stock al SKU: ${resultado.data.sku}\nNuevo Stock Total: ${resultado.data.stock}`);
-            } else {
-                alert(`✨ PRODUCTO CREADO\nSe registró el nuevo SKU: ${resultado.data.sku}`);
-            }
-
+            if(resultado.status === 'updated') alert('Stock Actualizado');
+            else alert('Producto Nuevo Creado');
             e.target.reset(); 
             render();
         };
         
+        // Función Eliminar
+        window.del = (id) => {
+            if(confirm('¿Eliminar este producto del inventario?')) {
+                APP.DAO.deleteProduct(id);
+                render();
+            }
+        }
+
         render();
     </script>
 </body>
