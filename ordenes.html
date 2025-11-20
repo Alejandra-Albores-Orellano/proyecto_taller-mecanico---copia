@@ -8,40 +8,55 @@
 <body>
     <div id="sidebar"></div>
     <div id="main-content">
-        <h2>Órdenes de Trabajo</h2>
+        <h2>Gestión de Órdenes (Recepción y Taller)</h2>
         
         <div class="card" id="panelCreate">
-            <h3><span style="color:var(--accent)">+</span> Nueva Orden</h3>
+            <h3><span style="color:var(--accent)">+</span> Nueva Orden de Trabajo</h3>
             <form id="formOrd">
-                <div class="form-group">
-                    <label>Seleccionar Vehículo</label>
-                    <select id="selCli" required><option value="">Buscar...</option></select>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label>Vehículo</label>
+                        <select id="selCli" required><option value="">Buscar...</option></select>
+                    </div>
+                    <div class="form-col">
+                        <label>Kilometraje</label>
+                        <input type="number" id="km" placeholder="Ej. 50000" required>
+                    </div>
+                    <div class="form-col">
+                        <label>Nivel Gasolina</label>
+                        <select id="gas" required>
+                            <option>Reserva</option><option>1/4</option><option>1/2</option><option>3/4</option><option>Lleno</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Falla Reportada / Motivo Ingreso</label>
-                    <textarea id="falla" rows="3" required></textarea>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label>Falla Reportada (Cliente)</label>
+                        <textarea id="falla" rows="2" required></textarea>
+                    </div>
+                    <div class="form-col">
+                        <label>Observaciones Exteriores (Daños)</label>
+                        <textarea id="obsExt" rows="2" placeholder="Rayones, golpes..."></textarea>
+                    </div>
                 </div>
-                <button class="btn btn-primary">Generar Orden</button>
+                <button class="btn btn-primary" style="margin-top:10px">Generar Orden</button>
             </form>
         </div>
 
         <div class="card">
             <h3>Tablero de Control</h3>
             <table>
-                <thead><tr><th>ID</th><th>Vehículo</th><th>Falla</th><th>Bitácora Mecánico</th><th>Estado</th><th>Acción</th></tr></thead>
+                <thead><tr><th>ID</th><th>Vehículo</th><th>Falla / Recepción</th><th>Bitácora Taller</th><th>Estado</th><th>Acción</th></tr></thead>
                 <tbody id="tbody"></tbody>
             </table>
         </div>
     </div>
-
-    <div id="modalDetalle" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="cerrarModal()">&times;</span>
-            <h2 style="margin-top:0">Detalle de Orden</h2>
-            <div id="modalBody">
-                </div>
-            <br>
-            <button class="btn btn-primary" onclick="cerrarModal()" style="width:100%">Cerrar</button>
+    
+    <div id="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5);">
+        <div style="background:#fff; margin:10% auto; padding:20px; width:50%; border-radius:5px;">
+            <h3 id="mTit">Detalle</h3>
+            <div id="mBod"></div>
+            <button class="btn btn-primary" onclick="document.getElementById('modal').style.display='none'" style="width:100%; margin-top:10px;">Cerrar</button>
         </div>
     </div>
 
@@ -49,55 +64,43 @@
     <script>
         APP.checkAuth();
         const user = APP.getSession();
-        
-        // Ocultar panel de crear SOLO si es mecánico (Rol 3)
         if(user.rol === 3) document.getElementById('panelCreate').style.display = 'none';
 
-        // Cargar selects
         const vehs = APP.DAO.getVehicles();
         const sel = document.getElementById('selCli');
-        const clients = APP.DAO.getClients(); // Necesario para ver nombre del cliente en el modal
-
         vehs.forEach(v => sel.innerHTML += `<option value="${v.id}">${v.modelo} - ${v.placas}</option>`);
 
         function render() {
-            const ords = APP.DAO.getOrders();
             const tbody = document.getElementById('tbody');
             tbody.innerHTML = '';
+            const ords = APP.DAO.getOrdersFull(); // Usa la nueva función JOIN
             
             ords.forEach(o => {
-                const v = vehs.find(x => x.id == o.idVehiculo) || { modelo: '?', placas: '?' };
+                const v = vehs.find(x => x.id == o.idVehiculo) || {modelo:'?', placas:'?'};
                 
-                let bitacora = o.observacionesMecanico || '<em style="color:#999">Sin registros</em>';
-                let estadoBadge = `<span class="badge ${o.idEstado==='Terminado'?'bg-done':'bg-pending'}">${o.idEstado}</span>`;
-                let accion = '';
+                let bitacoraUI = o.bitacora || '<em>Sin registros</em>';
+                let statusUI = `<span class="badge ${o.idEstado=='Terminado'?'bg-done':'bg-pending'}">${o.idEstado}</span>`;
+                let actionUI = `<button onclick="ver(${o.id})" class="btn btn-primary btn-sm">Ver</button>`;
 
-                if(user.rol === 3) { // VISTA MECÁNICO
-                    bitacora = `<textarea id="txt-${o.id}" placeholder="Trabajo...">${o.observacionesMecanico || ''}</textarea>`;
-                    estadoBadge = `<select id="est-${o.id}">
+                if(user.rol === 3) { // Mecánico
+                    bitacoraUI = `<textarea id="txt-${o.id}">${o.bitacora || ''}</textarea>`;
+                    statusUI = `<select id="est-${o.id}">
                         <option ${o.idEstado=='Pendiente'?'selected':''}>Pendiente</option>
                         <option ${o.idEstado=='En Proceso'?'selected':''}>En Proceso</option>
                         <option ${o.idEstado=='Terminado'?'selected':''}>Terminado</option>
                     </select>`;
-                    accion = `<button onclick="save(${o.id})" class="btn btn-success btn-sm">Guardar</button>`;
-                } 
-                else if (user.rol === 1) { // VISTA ADMIN (Rol 1) -> Botón Eliminar + Ver
-                    accion = `
-                        <button onclick="verOrden(${o.id})" class="btn btn-primary btn-sm" style="background:#3498db">Ver</button>
-                        <button onclick="del(${o.id})" class="btn btn-danger btn-sm">X</button>
-                    `;
-                }
-                else { // VISTA RECEPCIÓN (Rol 2) -> Botón Ver Detalle
-                    accion = `<button onclick="verOrden(${o.id})" class="btn btn-primary btn-sm" style="background:#3498db">Ver Detalle</button>`;
+                    actionUI = `<button onclick="save(${o.id})" class="btn btn-success btn-sm">Guardar</button>`;
+                } else if(user.rol === 1) { // Admin
+                    actionUI += ` <button onclick="del(${o.id})" class="btn btn-danger btn-sm">Eliminar</button>`;
                 }
 
                 tbody.innerHTML += `<tr>
-                    <td>#${o.id}</td>
-                    <td><b>${v.modelo}</b><br><small>${v.placas}</small></td>
-                    <td>${o.falla}</td>
-                    <td>${bitacora}</td>
-                    <td>${estadoBadge}</td>
-                    <td>${accion}</td>
+                    <td>#${String(o.id).padStart(4,'0')}</td>
+                    <td><b>${v.modelo}</b><br>${v.placas}</td>
+                    <td>${o.falla}<br><small>Km: ${o.km} | Gas: ${o.gas}</small></td>
+                    <td>${bitacoraUI}</td>
+                    <td>${statusUI}</td>
+                    <td>${actionUI}</td>
                 </tr>`;
             });
         }
@@ -106,62 +109,33 @@
             e.preventDefault();
             APP.DAO.createOrder({
                 idVehiculo: document.getElementById('selCli').value,
-                falla: document.getElementById('falla').value
+                km: document.getElementById('km').value,
+                gas: document.getElementById('gas').value,
+                falla: document.getElementById('falla').value,
+                obsExt: document.getElementById('obsExt').value
             });
-            render(); e.target.reset();
+            e.target.reset(); render();
         };
 
         window.save = (id) => {
             APP.DAO.updateOrderMechanic(id, document.getElementById(`txt-${id}`).value, document.getElementById(`est-${id}`).value);
-            alert('Guardado'); render();
+            alert('Bitácora actualizada'); render();
         };
-
-        window.del = (id) => {
-            if(confirm('¿Eliminar esta orden?')) { APP.DAO.deleteOrder(id); render(); }
-        };
-
-        // --- FUNCIONALIDAD DEL MODAL ---
+        window.del = (id) => { if(confirm('¿Eliminar?')) { APP.DAO.deleteOrder(id); render(); } };
         
-        window.verOrden = (id) => {
-            const o = APP.DAO.getOrders().find(x => x.id === id);
-            if(!o) return;
-
-            const v = vehs.find(x => x.id == o.idVehiculo) || { modelo: '?', placas: '?', idCliente: 0 };
-            const c = clients.find(x => x.id == v.idCliente) || { nombre: '?', telefono: '?' };
-
-            const modalHtml = `
-                <div class="detail-row"><span class="detail-label">Folio Orden:</span> <span>#${o.id}</span></div>
-                <div class="detail-row"><span class="detail-label">Fecha Ingreso:</span> <span>${o.fecha}</span></div>
-                <div class="detail-row"><span class="detail-label">Estado Actual:</span> <span>${o.idEstado}</span></div>
-                <div class="detail-row"><span class="detail-label">Cliente:</span> <span>${c.nombre} (Tel: ${c.telefono})</span></div>
-                <div class="detail-row"><span class="detail-label">Vehículo:</span> <span>${v.modelo} - ${v.placas} (${v.color || 'N/A'})</span></div>
-                
-                <div style="margin-top:15px; background:#f9f9f9; padding:10px; border-left:4px solid #e74c3c;">
-                    <span class="detail-label">Falla Reportada (Recepción):</span><br>
-                    <p style="margin:5px 0">${o.falla}</p>
-                </div>
-
-                <div style="margin-top:15px; background:#f9f9f9; padding:10px; border-left:4px solid #27ae60;">
-                    <span class="detail-label">Bitácora Mecánico:</span><br>
-                    <p style="margin:5px 0">${o.observacionesMecanico || 'Sin comentarios aún.'}</p>
-                </div>
+        window.ver = (id) => {
+            const o = APP.DAO.getOrdersFull().find(x => x.id === id);
+            const v = vehs.find(x => x.id == o.idVehiculo);
+            document.getElementById('mBod').innerHTML = `
+                <p><b>Vehículo:</b> ${v.modelo} (${v.placas})</p>
+                <p><b>Falla:</b> ${o.falla}</p>
+                <p><b>Datos Recepción:</b> ${o.km} Km, Gasolina ${o.gas}</p>
+                <hr>
+                <p><b>Bitácora Taller:</b> ${o.bitacora || 'Ninguna'}</p>
+                <p><b>Estado:</b> ${o.idEstado}</p>
             `;
-
-            document.getElementById('modalBody').innerHTML = modalHtml;
-            document.getElementById('modalDetalle').style.display = "block";
+            document.getElementById('modal').style.display = 'block';
         };
-
-        window.cerrarModal = () => {
-            document.getElementById('modalDetalle').style.display = "none";
-        };
-        
-        // Cerrar si dan click afuera del modal
-        window.onclick = function(event) {
-            const modal = document.getElementById('modalDetalle');
-            if (event.target == modal) {
-                modal.style.display = "none";
-            }
-        }
 
         render();
     </script>

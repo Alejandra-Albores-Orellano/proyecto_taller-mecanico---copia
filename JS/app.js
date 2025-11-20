@@ -1,19 +1,16 @@
 const APP = {
-    // Roles
     ROLES: {
-        ADMIN: { id: 1, nombre: 'Administrador', perm: 'all' },
-        RECEPCION: { id: 2, nombre: 'Recepción', perm: 'create_orders' },
-        MECANICO: { id: 3, nombre: 'Mecánico', perm: 'execute_orders' }
+        ADMIN: { id: 1, nombre: 'Administrador' },
+        RECEPCION: { id: 2, nombre: 'Recepción' },
+        MECANICO: { id: 3, nombre: 'Mecánico' }
     },
 
-    // --- 1. INICIALIZACIÓN ---
     initDB: function() {
-        if(!localStorage.getItem('st_init')) {
-            this.resetDB(); // Usamos la función de reset para iniciar
+        if(!localStorage.getItem('st_init_v2')) {
+            this.resetDB();
         }
     },
 
-    // Función para REINICIAR la base de datos (Solo Admin)
     resetDB: function() {
         const usuarios = [
             { id: 1, user: 'admin', pass: '123', nombre: 'Ing. Trujillo', rol: 1 },
@@ -21,25 +18,34 @@ const APP = {
             { id: 3, user: 'mecanico', pass: '123', nombre: 'José Herrera', rol: 3 }
         ];
         
-        localStorage.clear(); // Borra todo lo sucio
+        localStorage.clear();
         
+        // Tablas Estructurales
         localStorage.setItem('st_usuarios', JSON.stringify(usuarios));
         localStorage.setItem('st_clientes', JSON.stringify([]));
         localStorage.setItem('st_vehiculos', JSON.stringify([]));
-        localStorage.setItem('st_ordenes', JSON.stringify([])); 
-        localStorage.setItem('st_asignaciones', JSON.stringify([])); 
+        
+        // Tablas Operativas (Relaciones 1:1 y 1:N)
+        localStorage.setItem('st_ordenes', JSON.stringify([]));
+        localStorage.setItem('st_recepciones', JSON.stringify([]));
+        localStorage.setItem('st_obs_int', JSON.stringify([])); // Observaciones Interiores
+        localStorage.setItem('st_obs_ext', JSON.stringify([])); // Observaciones Exteriores
+        localStorage.setItem('st_asignaciones', JSON.stringify([])); // Bitácora mecánico
+        localStorage.setItem('st_control_calidad', JSON.stringify([])); // QA
+        
+        // Inventario
+        localStorage.setItem('st_proveedores', JSON.stringify([{id:1, nombre:'Refaccionaria Central', tel:'555-0000'}]));
         localStorage.setItem('st_refacciones', JSON.stringify([
-            { id: 1, sku: 'ACE-01', nombre: 'Aceite Sintético', stock: 20, min: 5, precio: 450 },
-            { id: 2, sku: 'FIL-01', nombre: 'Filtro Aire', stock: 3, min: 5, precio: 150 }
+            { id: 1, sku: 'ACE-01', nombre: 'Aceite Sintético', stock: 20, min: 5, precio: 450, idProv: 1 }
         ]));
-        localStorage.setItem('st_init', 'true');
+        
+        localStorage.setItem('st_init_v2', 'true');
     },
 
-    // --- 2. AUTENTICACIÓN ---
     getSession: () => JSON.parse(sessionStorage.getItem('st_session')),
     
     checkAuth: function() {
-        if(!localStorage.getItem('st_init')) this.initDB();
+        this.initDB();
         const s = this.getSession();
         if(!s && !location.pathname.includes('login.html')) location.href = 'login.html';
         if(s) this.renderSidebar(s);
@@ -60,15 +66,13 @@ const APP = {
         location.href = 'login.html';
     },
 
-    // --- 3. UI SIDEBAR ---
     renderSidebar: function(user) {
         const sb = document.getElementById('sidebar');
         if(!sb) return;
-        
         const rolName = Object.values(this.ROLES).find(r => r.id === user.rol).nombre;
         
         let menu = `<a href="index.html">📊 Dashboard</a>`;
-        if(user.rol !== 3) menu += `<a href="clientes.html">👥 Clientes</a>`; 
+        if(user.rol !== 3) menu += `<a href="clientes.html">👥 Clientes</a>`;
         menu += `<a href="ordenes.html">🔧 Órdenes</a>`;
         menu += `<a href="inventario.html">📦 Inventario</a>`;
         
@@ -88,151 +92,147 @@ const APP = {
         `;
     },
 
-    // --- 4. DAO (VALIDACIONES Y CRUD) ---
     DAO: {
-        // CLIENTES (VALIDACIÓN DE DUPLICADOS)
-        createClient: (data) => {
-            const db = JSON.parse(localStorage.getItem('st_clientes'));
-            
-            // VALIDACIÓN: No permitir nombres duplicados
-            const existe = db.find(c => c.nombre.toLowerCase() === data.nombre.toLowerCase());
-            if(existe) return { success: false, msg: 'Error: El cliente ya existe.' };
+        getNextId: (list) => list.length === 0 ? 1 : Math.max(...list.map(i => i.id)) + 1,
 
-            data.id = Date.now();
-            db.push(data);
+        // --- MÓDULO CLIENTES ---
+        createClient: (d) => {
+            let db = JSON.parse(localStorage.getItem('st_clientes'));
+            if(db.find(c => c.nombre === d.nombre)) return { success: false, msg: 'Cliente duplicado' };
+            d.id = APP.DAO.getNextId(db);
+            db.push(d);
             localStorage.setItem('st_clientes', JSON.stringify(db));
-            return { success: true, data: data };
+            return { success: true, data: d };
         },
-        getClients: () => JSON.parse(localStorage.getItem('st_clientes')),
         deleteClient: (id) => {
-            let dbCli = JSON.parse(localStorage.getItem('st_clientes'));
-            dbCli = dbCli.filter(c => c.id !== id);
-            localStorage.setItem('st_clientes', JSON.stringify(dbCli));
-            
-            // Borrar vehículos en cascada
-            let dbVeh = JSON.parse(localStorage.getItem('st_vehiculos'));
-            dbVeh = dbVeh.filter(v => v.idCliente !== id);
-            localStorage.setItem('st_vehiculos', JSON.stringify(dbVeh));
+            let db = JSON.parse(localStorage.getItem('st_clientes'));
+            localStorage.setItem('st_clientes', JSON.stringify(db.filter(x => x.id !== id)));
+            // Borrado en cascada simple
+            let veh = JSON.parse(localStorage.getItem('st_vehiculos'));
+            localStorage.setItem('st_vehiculos', JSON.stringify(veh.filter(x => x.idCliente !== id)));
             return true;
         },
+        getClients: () => JSON.parse(localStorage.getItem('st_clientes')),
 
-        // VEHÍCULOS (VALIDACIÓN DE PLACAS)
-        createVehicle: (data) => {
-            const db = JSON.parse(localStorage.getItem('st_vehiculos'));
-            
-            // VALIDACIÓN: No permitir placas duplicadas
-            const existe = db.find(v => v.placas.toUpperCase() === data.placas.toUpperCase());
-            if(existe) return { success: false, msg: 'Error: Las placas ya están registradas en otro vehículo.' };
-
-            data.id = Date.now() + 1;
-            db.push(data);
+        // --- MÓDULO VEHÍCULOS ---
+        createVehicle: (d) => {
+            let db = JSON.parse(localStorage.getItem('st_vehiculos'));
+            if(db.find(v => v.placas === d.placas)) return { success: false, msg: 'Placas duplicadas' };
+            d.id = APP.DAO.getNextId(db);
+            db.push(d);
             localStorage.setItem('st_vehiculos', JSON.stringify(db));
-            return { success: true, data: data };
+            return { success: true, data: d };
         },
         getVehicles: () => JSON.parse(localStorage.getItem('st_vehiculos')),
 
-        // USUARIOS (VALIDACIÓN)
-        getUsers: () => JSON.parse(localStorage.getItem('st_usuarios')),
-        createUser: (data) => {
-            let db = JSON.parse(localStorage.getItem('st_usuarios'));
-            if(db.find(u => u.user === data.user)) return { success: false, msg: 'El usuario ya existe.' };
-            data.id = Date.now();
-            db.push(data);
-            localStorage.setItem('st_usuarios', JSON.stringify(db));
-            return { success: true, msg: 'Usuario creado.' };
-        },
-        deleteUser: (id) => {
-            let db = JSON.parse(localStorage.getItem('st_usuarios'));
-            if(id === APP.getSession().id) return { success: false, msg: 'No puedes borrarte a ti mismo.' };
-            const newDb = db.filter(u => u.id !== id);
-            localStorage.setItem('st_usuarios', JSON.stringify(newDb));
-            return { success: true, msg: 'Usuario eliminado.' };
-        },
-
-        // ÓRDENES (ID SECUENCIAL 1, 2, 3...)
+        // --- MÓDULO ÓRDENES (COMPLEJO: Crea Recepción, Obs y Asignación) ---
         createOrder: (data) => {
-            const db = JSON.parse(localStorage.getItem('st_ordenes'));
-            
-            // ID Secuencial
-            let newId = 1;
-            if (db.length > 0) {
-                const maxId = db.reduce((max, order) => order.id > max ? order.id : max, 0);
-                newId = (maxId > 999999) ? 1 : maxId + 1;
-            }
+            const dbOrd = JSON.parse(localStorage.getItem('st_ordenes'));
+            const dbRec = JSON.parse(localStorage.getItem('st_recepciones'));
+            const dbObsI = JSON.parse(localStorage.getItem('st_obs_int'));
+            const dbObsE = JSON.parse(localStorage.getItem('st_obs_ext'));
+            const dbAsig = JSON.parse(localStorage.getItem('st_asignaciones'));
 
-            const order = {
-                id: newId,
+            const nextId = APP.DAO.getNextId(dbOrd);
+
+            // 1. Crear Registros Auxiliares
+            const idRec = APP.DAO.getNextId(dbRec);
+            dbRec.push({ id: idRec, idVehiculo: data.idVehiculo, km: data.km, gas: data.gas, fecha: new Date().toLocaleDateString() });
+
+            const idObsI = APP.DAO.getNextId(dbObsI);
+            dbObsI.push({ id: idObsI, detalle: 'Registro estándar de recepción' });
+
+            const idObsE = APP.DAO.getNextId(dbObsE);
+            dbObsE.push({ id: idObsE, detalle: data.obsExt });
+
+            // 2. Crear Orden Maestra
+            const orden = {
+                id: nextId,
                 idVehiculo: data.idVehiculo,
-                idEstado: 'Pendiente', 
+                idRecepcion: idRec,
+                idObsInt: idObsI,
+                idObsExt: idObsE,
                 falla: data.falla,
-                fecha: new Date().toISOString().split('T')[0],
-                monto: 0
+                idEstado: 'Pendiente'
             };
-            db.push(order);
-            localStorage.setItem('st_ordenes', JSON.stringify(db));
-            
-            const asigs = JSON.parse(localStorage.getItem('st_asignaciones'));
-            asigs.push({ idOrden: order.id, idMecanico: null, observaciones: '' });
-            localStorage.setItem('st_asignaciones', JSON.stringify(asigs));
-            
-            return order;
+            dbOrd.push(orden);
+
+            // 3. Crear Asignación Vacía
+            dbAsig.push({ idOrden: nextId, idMecanico: null, bitacora: '' });
+
+            // Guardar todo
+            localStorage.setItem('st_recepciones', JSON.stringify(dbRec));
+            localStorage.setItem('st_obs_int', JSON.stringify(dbObsI));
+            localStorage.setItem('st_obs_ext', JSON.stringify(dbObsE));
+            localStorage.setItem('st_ordenes', JSON.stringify(dbOrd));
+            localStorage.setItem('st_asignaciones', JSON.stringify(dbAsig));
+
+            return orden;
         },
-        getOrders: () => {
-            const orders = JSON.parse(localStorage.getItem('st_ordenes'));
-            const asigs = JSON.parse(localStorage.getItem('st_asignaciones'));
-            return orders.map(o => {
-                const a = asigs.find(x => x.idOrden === o.id) || {};
-                return { ...o, observacionesMecanico: a.observaciones };
+        getOrdersFull: () => {
+            const ord = JSON.parse(localStorage.getItem('st_ordenes'));
+            const asig = JSON.parse(localStorage.getItem('st_asignaciones'));
+            const rec = JSON.parse(localStorage.getItem('st_recepciones'));
+            
+            return ord.map(o => {
+                const a = asig.find(x => x.idOrden === o.id) || {};
+                const r = rec.find(x => x.id === o.idRecepcion) || {};
+                return { ...o, bitacora: a.bitacora, km: r.km, gas: r.gas };
             });
         },
-        updateOrderMechanic: (idOrden, obs, nuevoEstado) => {
-            const orders = JSON.parse(localStorage.getItem('st_ordenes'));
-            const idxO = orders.findIndex(o => o.id === idOrden);
-            if(idxO > -1) {
-                orders[idxO].idEstado = nuevoEstado;
-                localStorage.setItem('st_ordenes', JSON.stringify(orders));
-            }
-            const asigs = JSON.parse(localStorage.getItem('st_asignaciones'));
-            const idxA = asigs.findIndex(a => a.idOrden === idOrden);
-            if(idxA > -1) {
-                asigs[idxA].observaciones = obs;
-                localStorage.setItem('st_asignaciones', JSON.stringify(asigs));
-                return true;
-            }
-            return false;
+        updateOrderMechanic: (id, bitacora, estado) => {
+            let ord = JSON.parse(localStorage.getItem('st_ordenes'));
+            let asig = JSON.parse(localStorage.getItem('st_asignaciones'));
+            
+            const idxO = ord.findIndex(x => x.id === id);
+            if(idxO > -1) ord[idxO].idEstado = estado;
+            
+            const idxA = asig.findIndex(x => x.idOrden === id);
+            if(idxA > -1) asig[idxA].bitacora = bitacora;
+
+            localStorage.setItem('st_ordenes', JSON.stringify(ord));
+            localStorage.setItem('st_asignaciones', JSON.stringify(asig));
         },
         deleteOrder: (id) => {
             let db = JSON.parse(localStorage.getItem('st_ordenes'));
-            db = db.filter(o => o.id !== id);
-            localStorage.setItem('st_ordenes', JSON.stringify(db));
-            return true;
+            localStorage.setItem('st_ordenes', JSON.stringify(db.filter(x => x.id !== id)));
         },
 
-        // INVENTARIO (ACTUALIZACIÓN STOCK)
+        // --- INVENTARIO ---
         getInventory: () => JSON.parse(localStorage.getItem('st_refacciones')),
         createProduct: (p) => {
-            let db = JSON.parse(localStorage.getItem('st_refacciones')) || [];
-            const index = db.findIndex(item => item.sku === p.sku);
-
-            if (index !== -1) {
-                db[index].stock = parseInt(db[index].stock) + parseInt(p.stock);
-                db[index].nombre = p.nombre;
-                db[index].precio = p.precio;
-                db[index].min = p.min;
+            let db = JSON.parse(localStorage.getItem('st_refacciones'));
+            let exist = db.findIndex(x => x.sku === p.sku);
+            if(exist > -1) {
+                db[exist].stock = parseInt(db[exist].stock) + parseInt(p.stock);
                 localStorage.setItem('st_refacciones', JSON.stringify(db));
-                return { status: 'updated', data: db[index] };
-            } else {
-                p.id = Date.now();
-                db.push(p);
-                localStorage.setItem('st_refacciones', JSON.stringify(db));
-                return { status: 'created', data: p };
+                return { status: 'updated' };
             }
+            p.id = APP.DAO.getNextId(db);
+            db.push(p);
+            localStorage.setItem('st_refacciones', JSON.stringify(db));
+            return { status: 'created' };
         },
         deleteProduct: (id) => {
             let db = JSON.parse(localStorage.getItem('st_refacciones'));
-            db = db.filter(p => p.id !== id);
-            localStorage.setItem('st_refacciones', JSON.stringify(db));
-            return true;
+            localStorage.setItem('st_refacciones', JSON.stringify(db.filter(x => x.id !== id)));
+        },
+
+        // --- USUARIOS ---
+        getUsers: () => JSON.parse(localStorage.getItem('st_usuarios')),
+        createUser: (d) => {
+            let db = JSON.parse(localStorage.getItem('st_usuarios'));
+            if(db.find(u => u.user === d.user)) return { success:false, msg:'Usuario existe' };
+            d.id = APP.DAO.getNextId(db);
+            db.push(d);
+            localStorage.setItem('st_usuarios', JSON.stringify(db));
+            return { success:true };
+        },
+        deleteUser: (id) => {
+            if(id === APP.getSession().id) return { success:false, msg:'No auto-eliminar' };
+            let db = JSON.parse(localStorage.getItem('st_usuarios'));
+            localStorage.setItem('st_usuarios', JSON.stringify(db.filter(x => x.id !== id)));
+            return { success:true };
         }
     }
 };

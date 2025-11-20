@@ -11,6 +11,7 @@
     <div id="main-content">
         <h2>Módulo de Pruebas (QA)</h2>
         <p>Ejecución de Pruebas Unitarias (10 Casos) e Integración de Sistema.</p>
+        <p style="color:#7f8c8d"><small>Nota: Al ejecutar la suite, se limpiarán los datos temporales para evitar duplicados.</small></p>
         <button class="btn btn-primary" onclick="runTests()">EJECUTAR SUITE DE PRUEBAS</button>
         <br><br>
         <div class="console" id="log">Esperando ejecución...</div>
@@ -28,36 +29,78 @@
         }
 
         function runTests() {
-            document.getElementById('log').innerHTML = 'INICIANDO PRUEBAS...<br>-----------------------<br>';
+            const logDiv = document.getElementById('log');
+            logDiv.innerHTML = 'PREPARANDO ENTORNO DE PRUEBAS...<br>';
             
+            // --- PASO 0: LIMPIEZA PREVIA (RESET) ---
+            // Esto evita el error de "Ya existe" al correr la prueba varias veces.
+            try {
+                localStorage.setItem('st_clientes', JSON.stringify([]));
+                localStorage.setItem('st_vehiculos', JSON.stringify([]));
+                localStorage.setItem('st_ordenes', JSON.stringify([]));
+                localStorage.setItem('st_asignaciones', JSON.stringify([]));
+                // Reiniciamos inventario al estado base
+                localStorage.setItem('st_refacciones', JSON.stringify([
+                    { id: 1, sku: 'ACE-01', nombre: 'Aceite Sintético', stock: 20, min: 5, precio: 450 }
+                ]));
+                logDiv.innerHTML += 'ENTORNO LIMPIO. INICIANDO TESTS...<br>-----------------------<br>';
+            } catch(e) {
+                console.error(e);
+            }
+
             try {
                 // PRUEBAS UNITARIAS (Componentes individuales)
+                
+                // 1. Auth
                 logger('1. Auth: Login Admin correcto', APP.login('admin', '123') === true);
+                
+                // 2. Auth Fail
                 logger('2. Auth: Login Contraseña incorrecta rechazada', APP.login('admin', 'xxx') === false);
                 
+                // 3. Cliente
                 const cli = APP.DAO.createClient({ nombre: 'Test QA', telefono: '555' });
-                logger('3. CRUD Cliente: Creación exitosa', cli.id !== undefined);
+                // Verificamos success porque ahora createClient devuelve un objeto {success, data}
+                logger('3. CRUD Cliente: Creación exitosa', cli.success === true);
                 
-                const veh = APP.DAO.createVehicle({ idCliente: cli.id, modelo: 'QA Car', placas: 'QA-01' });
-                logger('4. CRUD Vehículo: Creación exitosa', veh.id !== undefined);
+                // 4. Vehículo
+                // Nota: Usamos cli.data.id porque el objeto cambio en la version final
+                let vehId = 0;
+                if(cli.success) {
+                    const veh = APP.DAO.createVehicle({ idCliente: cli.data.id, modelo: 'QA Car', placas: 'QA-01', color: 'Blanco' });
+                    logger('4. CRUD Vehículo: Creación exitosa', veh.success === true);
+                    if(veh.success) vehId = veh.data.id;
+                } else {
+                    logger('4. CRUD Vehículo: Omitido por fallo anterior', false);
+                }
                 
-                const inv = APP.DAO.createProduct({ sku: 'QA-PART', stock: 10, min: 2 });
-                logger('5. CRUD Inventario: Creación exitosa', inv.id !== undefined);
+                // 5. Inventario
+                const inv = APP.DAO.createProduct({ sku: 'QA-PART', nombre:'Pieza Test', stock: 10, min: 2, precio: 100 });
+                logger('5. CRUD Inventario: Creación exitosa', inv.status === 'created');
                 
-                const ord = APP.DAO.createOrder({ idVehiculo: veh.id, falla: 'Falla Test' });
-                logger('6. Orden: Estado inicial es "Pendiente"', ord.idEstado === 'Pendiente');
-                
-                // Simular Mecánico
-                const update = APP.DAO.updateOrderMechanic(ord.id, 'Trabajo QA', 'En Proceso');
-                logger('7. Lógica Mecánico: Actualización permitida', update === true);
-                
-                const ordCheck = APP.DAO.getOrders().find(o => o.id === ord.id);
-                logger('8. Persistencia: Estado cambiado a "En Proceso"', ordCheck.idEstado === 'En Proceso');
-                
-                APP.DAO.deleteOrder(ord.id);
-                const delCheck = APP.DAO.getOrders().find(o => o.id === ord.id);
-                logger('9. Admin: Eliminación de orden correcta', delCheck === undefined);
+                // 6. Orden
+                let ordId = 0;
+                if(vehId > 0) {
+                    const ord = APP.DAO.createOrder({ idVehiculo: vehId, falla: 'Falla Test' });
+                    logger('6. Orden: Estado inicial es "Pendiente"', ord.idEstado === 'Pendiente');
+                    ordId = ord.id;
+                    
+                    // 7. Lógica Mecánico
+                    const update = APP.DAO.updateOrderMechanic(ordId, 'Trabajo QA', 'En Proceso');
+                    logger('7. Lógica Mecánico: Actualización permitida', update === true);
+                    
+                    // 8. Persistencia
+                    const ordCheck = APP.DAO.getOrders().find(o => o.id === ordId);
+                    logger('8. Persistencia: Estado cambiado a "En Proceso"', ordCheck.idEstado === 'En Proceso');
+                    
+                    // 9. Eliminación
+                    APP.DAO.deleteOrder(ordId);
+                    const delCheck = APP.DAO.getOrders().find(o => o.id === ordId);
+                    logger('9. Admin: Eliminación de orden correcta', delCheck === undefined);
+                } else {
+                    logger('6-9. Órdenes: Omitido por fallo en vehículo', false);
+                }
 
+                // 10. Lectura Inventario
                 const stockCheck = APP.DAO.getInventory();
                 logger('10. Inventario: Lectura de datos correcta', stockCheck.length > 0);
 
@@ -65,24 +108,37 @@
                 document.getElementById('log').innerHTML += '<br>PRUEBA DE INTEGRACIÓN<br>-----------------------<br>';
                 
                 // Flujo: Recepción Crea -> Mecánico Repara -> Sistema verifica
-                const iCli = APP.DAO.createClient({nombre: 'Integration'});
-                const iVeh = APP.DAO.createVehicle({idCliente: iCli.id, modelo: 'IntCar', placas: 'INT-99'});
-                const iOrd = APP.DAO.createOrder({idVehiculo: iVeh.id, falla: 'Ruido Motor'});
-                
-                APP.DAO.updateOrderMechanic(iOrd.id, 'Motor Reparado', 'Terminado');
-                
-                const finalOrd = APP.DAO.getOrders().find(o => o.id === iOrd.id);
-                
-                const integracionExitosa = (
-                    finalOrd.idVehiculo === iVeh.id && 
-                    finalOrd.idEstado === 'Terminado' && 
-                    finalOrd.observacionesMecanico === 'Motor Reparado'
-                );
-                
-                logger('FLUJO COMPLETO: Cliente -> Vehículo -> Orden -> Reparación -> Cierre', integracionExitosa);
+                // Usamos nombres distintos para asegurar que no choque
+                const iCli = APP.DAO.createClient({nombre: 'Integration Flow', telefono: '999'});
+                if(iCli.success) {
+                    const iVeh = APP.DAO.createVehicle({idCliente: iCli.data.id, modelo: 'IntCar', placas: 'INT-99', color:'Rojo'});
+                    
+                    if(iVeh.success) {
+                        const iOrd = APP.DAO.createOrder({idVehiculo: iVeh.data.id, falla: 'Ruido Motor'});
+                        
+                        // Mecánico trabaja
+                        APP.DAO.updateOrderMechanic(iOrd.id, 'Motor Reparado', 'Terminado');
+                        
+                        // Verificación
+                        const finalOrd = APP.DAO.getOrders().find(o => o.id === iOrd.id);
+                        
+                        const integracionExitosa = (
+                            finalOrd.idVehiculo === iVeh.data.id && 
+                            finalOrd.idEstado === 'Terminado' && 
+                            finalOrd.observacionesMecanico === 'Motor Reparado'
+                        );
+                        
+                        logger('FLUJO COMPLETO: Cliente -> Vehículo -> Orden -> Reparación -> Cierre', integracionExitosa);
+                    } else {
+                        logger('Error Integración: Falló crear vehículo', false);
+                    }
+                } else {
+                    logger('Error Integración: Falló crear cliente', false);
+                }
 
             } catch(e) {
                 logger('Error Crítico en Pruebas: ' + e.message, false);
+                console.error(e);
             }
         }
     </script>
