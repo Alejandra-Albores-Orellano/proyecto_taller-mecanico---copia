@@ -5,28 +5,30 @@
     <title>Login - ServiTaller</title>
     <link rel="stylesheet" href="css/estilos.css">
 </head>
-<body class="login-page">
-    <div class="card" style="width: 350px; text-align: center;">
-        <h2>ServiTaller</h2>
-        <p>Sistema de Gestión Integral</p>
+<body style="justify-content:center; align-items:center; background: #34495e;">
+    <div class="card" style="width: 350px; text-align: center; padding: 40px;">
+        <h2 style="border:none; font-weight:bold; color:#2c3e50;">ServiTaller</h2>
+        <p style="color:#7f8c8d; margin-bottom:30px;">Gestión Integral de Taller</p>
         <form id="loginForm">
-            <input type="text" id="user" placeholder="Usuario" required>
-            <input type="password" id="pass" placeholder="Contraseña" required>
-            <button type="submit" class="btn btn-primary" style="width:100%">Ingresar</button>
+            <div class="form-group"><input type="text" id="u" placeholder="Usuario" required></div>
+            <div class="form-group"><input type="password" id="p" placeholder="Contraseña" required></div>
+            <button type="submit" class="btn btn-primary" style="width:100%">INICIAR SESIÓN</button>
         </form>
-        <div style="margin-top:15px; font-size:0.8rem; color:#777; text-align:left;">
-            <p><strong>Credenciales (Demo):</strong><br>Admin: admin/123<br>Recepción: recepcion/123<br>Mecánico: mecanico/123</p>
+        <div style="margin-top:20px; text-align:left; font-size:0.8rem; background:#f8f9fa; padding:10px; border-radius:4px;">
+            <strong>Credenciales Demo:</strong><br>
+            Admin: admin / 123<br>
+            Recepción: recepcion / 123<br>
+            Mecánico: mecanico / 123
         </div>
     </div>
     <script src="js/app.js"></script>
     <script>
         APP.initDB();
-        document.getElementById('loginForm').addEventListener('submit', (e) => {
+        document.getElementById('loginForm').onsubmit = (e) => {
             e.preventDefault();
-            if(APP.login(document.getElementById('user').value, document.getElementById('pass').value)) {
-                window.location.href = 'index.html';
-            } else { alert('Credenciales incorrectas'); }
-        });
+            if(APP.login(document.getElementById('u').value, document.getElementById('p').value)) location.href = 'index.html';
+            else alert('Usuario o contraseña incorrectos');
+        };
     </script>
 </body>
 </html>

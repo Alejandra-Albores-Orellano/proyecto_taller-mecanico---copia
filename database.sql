@@ -1,70 +1,206 @@
--- CREACIÓN DE LA BASE DE DATOS
+-- CREACIÓN DE BASE DE DATOS SEGÚN DIAGRAMA ENTIDAD-RELACIÓN (DER)
 CREATE DATABASE IF NOT EXISTS ServiTaller;
 USE ServiTaller;
 
--- TABLA USUARIOS (Roles y Accesos)
+-- === TABLAS CATÁLOGO (Lado Izquierdo del Diagrama) ===
+
+CREATE TABLE Empresa (
+    id_Empresa INT PRIMARY KEY AUTO_INCREMENT,
+    NombreComercial VARCHAR(100),
+    Nombre VARCHAR(150),
+    Logotipo VARCHAR(255),
+    Llamadas VARCHAR(20),
+    Correo VARCHAR(100),
+    RFC VARCHAR(20)
+);
+
+CREATE TABLE Estado (
+    id_estado INT PRIMARY KEY AUTO_INCREMENT,
+    Nombre VARCHAR(100)
+);
+
+CREATE TABLE Municipio (
+    id_municipio INT PRIMARY KEY AUTO_INCREMENT,
+    Nombre VARCHAR(100),
+    id_estado INT,
+    FOREIGN KEY (id_estado) REFERENCES Estado(id_estado)
+);
+
+CREATE TABLE Sucursal (
+    id_Sucursal INT PRIMARY KEY AUTO_INCREMENT,
+    id_Empresa INT,
+    Nombre VARCHAR(100),
+    Calle VARCHAR(100),
+    Numero_Exterior VARCHAR(10),
+    Numero_Interior VARCHAR(10),
+    Colonia VARCHAR(100),
+    CP VARCHAR(10),
+    id_Municipio INT,
+    id_Estado INT,
+    FOREIGN KEY (id_Empresa) REFERENCES Empresa(id_Empresa),
+    FOREIGN KEY (id_Municipio) REFERENCES Municipio(id_municipio)
+);
+
+CREATE TABLE Roles (
+    id_rol INT PRIMARY KEY AUTO_INCREMENT,
+    Nombre VARCHAR(50),
+    Descripcion VARCHAR(255)
+);
+
+CREATE TABLE Empleados (
+    id_empleado INT PRIMARY KEY AUTO_INCREMENT,
+    id_Sucursal INT,
+    Nombre VARCHAR(50),
+    Paterno VARCHAR(50),
+    Materno VARCHAR(50),
+    RFC VARCHAR(20),
+    Calle VARCHAR(100),
+    Numero_Exterior VARCHAR(10),
+    FOREIGN KEY (id_Sucursal) REFERENCES Sucursal(id_Sucursal)
+);
+
 CREATE TABLE Usuarios (
-    id_usuario INT AUTO_INCREMENT PRIMARY KEY,
-    nombre_completo VARCHAR(100) NOT NULL,
-    username VARCHAR(50) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL, -- En producción usar Hash
-    rol ENUM('admin', 'recepcion', 'mecanico') NOT NULL
+    id_usuario INT PRIMARY KEY AUTO_INCREMENT,
+    id_empleado INT,
+    id_Rol INT,
+    Usuario VARCHAR(50) UNIQUE,
+    Contrasena VARCHAR(255),
+    FOREIGN KEY (id_empleado) REFERENCES Empleados(id_empleado),
+    FOREIGN KEY (id_Rol) REFERENCES Roles(id_rol)
 );
 
--- TABLA CLIENTES
-CREATE TABLE Clientes (
-    id_cliente INT AUTO_INCREMENT PRIMARY KEY,
-    nombre VARCHAR(150) NOT NULL,
-    telefono VARCHAR(20) NOT NULL,
-    email VARCHAR(100),
-    rfc VARCHAR(20),
-    direccion TEXT
+-- === MÓDULO CLIENTES Y VEHÍCULOS ===
+
+CREATE TABLE Cliente (
+    id_cliente INT PRIMARY KEY AUTO_INCREMENT,
+    id_Sucursal INT,
+    Nombre VARCHAR(150),
+    Telefono_1 VARCHAR(20),
+    Correo VARCHAR(100),
+    Calle VARCHAR(100),
+    id_Municipio INT,
+    id_Estado INT,
+    FOREIGN KEY (id_Sucursal) REFERENCES Sucursal(id_Sucursal)
 );
 
--- TABLA VEHÍCULOS
-CREATE TABLE Vehiculos (
-    id_vehiculo INT AUTO_INCREMENT PRIMARY KEY,
-    id_cliente INT NOT NULL,
-    marca VARCHAR(50) NOT NULL,
-    modelo VARCHAR(50) NOT NULL,
-    anio INT NOT NULL,
-    placas VARCHAR(20) UNIQUE NOT NULL,
-    vin VARCHAR(30),
-    color VARCHAR(30),
-    FOREIGN KEY (id_cliente) REFERENCES Clientes(id_cliente) ON DELETE CASCADE
+CREATE TABLE Vehiculo (
+    id_vehiculo INT PRIMARY KEY AUTO_INCREMENT,
+    id_cliente INT,
+    Marca VARCHAR(50),
+    Modelo VARCHAR(50),
+    Anio INT,
+    VIN VARCHAR(30),
+    Placas VARCHAR(20) UNIQUE,
+    Color VARCHAR(30),
+    FOREIGN KEY (id_cliente) REFERENCES Cliente(id_cliente)
 );
 
--- TABLA INVENTARIO (Refacciones)
-CREATE TABLE Inventario (
-    id_refaccion INT AUTO_INCREMENT PRIMARY KEY,
-    sku VARCHAR(50) UNIQUE NOT NULL,
-    nombre VARCHAR(100) NOT NULL,
-    precio_venta DECIMAL(10,2) NOT NULL,
-    stock_actual INT NOT NULL,
-    stock_minimo INT NOT NULL
+-- === MÓDULO OPERATIVO (Ordenes, Recepción, Diagnóstico) ===
+
+CREATE TABLE Recepcion (
+    id_recepcion INT PRIMARY KEY AUTO_INCREMENT,
+    id_vehiculo INT,
+    id_usuario INT, -- Recepcionista
+    Fecha_Recepcion DATE,
+    Hora_Recepcion TIME,
+    FOREIGN KEY (id_vehiculo) REFERENCES Vehiculo(id_vehiculo),
+    FOREIGN KEY (id_usuario) REFERENCES Usuarios(id_usuario)
 );
 
--- TABLA ÓRDENES DE TRABAJO
-CREATE TABLE Ordenes (
-    id_orden INT AUTO_INCREMENT PRIMARY KEY,
-    id_cliente INT NOT NULL,
-    id_vehiculo INT NOT NULL,
-    falla_reportada TEXT NOT NULL,
-    trabajo_realizado TEXT, -- Campo para el mecánico
-    estado ENUM('Pendiente', 'En Proceso', 'Terminado', 'Entregado') DEFAULT 'Pendiente',
-    fecha_ingreso DATETIME DEFAULT CURRENT_TIMESTAMP,
-    costo_total DECIMAL(10,2) DEFAULT 0.00,
-    FOREIGN KEY (id_cliente) REFERENCES Clientes(id_cliente),
-    FOREIGN KEY (id_vehiculo) REFERENCES Vehiculos(id_vehiculo)
+CREATE TABLE ObservacionesInt (
+    id_observacionesInt INT PRIMARY KEY AUTO_INCREMENT,
+    id_vehiculo INT,
+    Tablero BOOLEAN,
+    Calefaccion BOOLEAN,
+    Vestiduras BOOLEAN,
+    Otros TEXT,
+    FOREIGN KEY (id_vehiculo) REFERENCES Vehiculo(id_vehiculo)
 );
 
--- DATOS INICIALES (Semilla)
-INSERT INTO Usuarios (nombre_completo, username, password, rol) VALUES 
-('Ing. Luis Trujillo', 'admin', '123', 'admin'),
-('Abril Guzmán', 'recepcion', '123', 'recepcion'),
-('José Herrera', 'mecanico', '123', 'mecanico');
+CREATE TABLE ObservacionesExt (
+    id_observacionesExt INT PRIMARY KEY AUTO_INCREMENT,
+    id_vehiculo INT,
+    LucesFrontales BOOLEAN,
+    EspejosLaterales BOOLEAN,
+    Llantas BOOLEAN,
+    Carroceria TEXT,
+    FOREIGN KEY (id_vehiculo) REFERENCES Vehiculo(id_vehiculo)
+);
 
-INSERT INTO Inventario (sku, nombre, precio_venta, stock_actual, stock_minimo) VALUES
-('ACE-001', 'Aceite Sintético 5W-30', 450.00, 20, 5),
-('FIL-002', 'Filtro de Aire Universal', 150.00, 3, 5),
-('BUJ-NGK', 'Bujía Iridium', 120.00, 50, 10);
+CREATE TABLE EstadoGeneral (
+    id_EstadoGeneral INT PRIMARY KEY AUTO_INCREMENT,
+    Nombre VARCHAR(50), -- Ej: Pendiente, En Proceso, Terminado
+    Descripcion VARCHAR(255)
+);
+
+CREATE TABLE OrdenDeTrabajo (
+    id_orden INT PRIMARY KEY AUTO_INCREMENT,
+    id_vehiculo INT,
+    id_observacionesExt INT,
+    id_observacionesInt INT,
+    id_recepcion INT,
+    id_EstadoGeneral INT,
+    Monto_Total DECIMAL(10,2),
+    Recomendaciones TEXT,
+    FechaEntrega DATE,
+    FOREIGN KEY (id_vehiculo) REFERENCES Vehiculo(id_vehiculo),
+    FOREIGN KEY (id_EstadoGeneral) REFERENCES EstadoGeneral(id_EstadoGeneral)
+);
+
+-- Asignación a Mecánicos
+CREATE TABLE AsignacionOrden (
+    id_AsignacionOrden INT PRIMARY KEY AUTO_INCREMENT,
+    id_orden INT,
+    id_usuario INT, -- Mecánico
+    FechaInicio DATE,
+    Observaciones TEXT, -- Bitácora del mecánico
+    FOREIGN KEY (id_orden) REFERENCES OrdenDeTrabajo(id_orden),
+    FOREIGN KEY (id_usuario) REFERENCES Usuarios(id_usuario)
+);
+
+CREATE TABLE ControlCalidad (
+    id_ControlCalidad INT PRIMARY KEY AUTO_INCREMENT,
+    id_AsignacionOrden INT,
+    id_usuario INT, -- Supervisor
+    Aprobado BOOLEAN,
+    Observaciones TEXT,
+    FOREIGN KEY (id_AsignacionOrden) REFERENCES AsignacionOrden(id_AsignacionOrden)
+);
+
+-- === MÓDULO INVENTARIO Y VENTAS ===
+
+CREATE TABLE Proveedores (
+    id_Proveedor INT PRIMARY KEY AUTO_INCREMENT,
+    NombreComercial VARCHAR(100),
+    ContactoPrincipal VARCHAR(100),
+    Telefono VARCHAR(20)
+);
+
+CREATE TABLE Refacciones (
+    id_Refaccion INT PRIMARY KEY AUTO_INCREMENT,
+    id_Proveedor INT,
+    SKU VARCHAR(50) UNIQUE,
+    Nombre VARCHAR(100),
+    Stock INT,
+    StockMinimo INT,
+    PrecioVenta DECIMAL(10,2),
+    FOREIGN KEY (id_Proveedor) REFERENCES Proveedores(id_Proveedor)
+);
+
+CREATE TABLE DetalleOrdenRefaccion (
+    id_DetalleOrdenR INT PRIMARY KEY AUTO_INCREMENT,
+    id_orden INT,
+    id_Refaccion INT,
+    Cantidad INT,
+    Total DECIMAL(10,2),
+    FOREIGN KEY (id_orden) REFERENCES OrdenDeTrabajo(id_orden),
+    FOREIGN KEY (id_Refaccion) REFERENCES Refacciones(id_Refaccion)
+);
+
+-- === DATOS INICIALES (SEED) ===
+
+INSERT INTO Roles (Nombre) VALUES ('Administrador'), ('Recepcion'), ('Mecanico');
+INSERT INTO EstadoGeneral (Nombre) VALUES ('Pendiente'), ('En Proceso'), ('Control Calidad'), ('Terminado');
+-- Usuarios: admin/123, recepcion/123, mecanico/123 (Hash en producción)
+INSERT INTO Usuarios (Usuario, Contrasena, id_Rol) VALUES 
+('admin', '123', 1), ('recepcion', '123', 2), ('mecanico', '123', 3);

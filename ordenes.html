@@ -10,27 +10,26 @@
     <div id="main-content">
         <h2>Órdenes de Trabajo</h2>
         
-        <div class="card" id="createCard">
-            <h3>Crear Orden</h3>
-            <form id="formOrder">
-                <select id="clientSel" required><option value="">Seleccione Cliente...</option></select>
-                <textarea id="falla" placeholder="Descripción de la falla (Recepción)" required></textarea>
-                <button type="submit" class="btn btn-primary">Generar Orden</button>
+        <div class="card" id="panelCreate">
+            <h3><span style="color:var(--accent)">+</span> Nueva Orden (Recepción)</h3>
+            <form id="formOrd">
+                <div class="form-group">
+                    <label>Seleccionar Vehículo</label>
+                    <select id="selCli" required><option value="">Buscar...</option></select>
+                </div>
+                <div class="form-group">
+                    <label>Falla Reportada / Motivo Ingreso</label>
+                    <textarea id="falla" rows="3" required></textarea>
+                </div>
+                <button class="btn btn-primary">Generar Orden</button>
             </form>
         </div>
 
         <div class="card">
+            <h3>Tablero de Control</h3>
             <table>
-                <thead>
-                    <tr>
-                        <th>Cliente / Vehículo</th>
-                        <th>Falla (Recepción)</th>
-                        <th>Trabajo Realizado (Mecánico)</th>
-                        <th>Estado</th>
-                        <th>Acción</th>
-                    </tr>
-                </thead>
-                <tbody id="tableBody"></tbody>
+                <thead><tr><th>ID</th><th>Vehículo</th><th>Diagnóstico (Recepción)</th><th>Bitácora Mecánico</th><th>Estado</th><th>Acción</th></tr></thead>
+                <tbody id="tbody"></tbody>
             </table>
         </div>
     </div>
@@ -38,67 +37,72 @@
     <script>
         APP.checkAuth();
         const user = APP.getSession();
+        
+        if(user.rol === 3) document.getElementById('panelCreate').style.display = 'none';
 
-        if(user.role === 'mecanico') document.getElementById('createCard').style.display = 'none';
-
-        // Cargar Select
-        const clients = APP.DAO.getClients();
-        const sel = document.getElementById('clientSel');
-        clients.forEach(c => sel.innerHTML += `<option value="${c.id}">${c.nombre} - ${c.vehiculo}</option>`);
+        // Cargar selects
+        const vehs = APP.DAO.getVehicles();
+        const sel = document.getElementById('selCli');
+        vehs.forEach(v => sel.innerHTML += `<option value="${v.id}">${v.modelo} - ${v.placas}</option>`);
 
         function render() {
-            const tbody = document.getElementById('tableBody');
+            const ords = APP.DAO.getOrders();
+            const tbody = document.getElementById('tbody');
             tbody.innerHTML = '';
-            APP.DAO.getOrders().forEach(o => {
-                const client = clients.find(c => c.id == o.clientId) || { nombre: 'Desconocido', vehiculo: '?' };
+            
+            ords.forEach(o => {
+                const v = vehs.find(x => x.id == o.idVehiculo) || { modelo: '?', placas: '?' };
                 
-                // VISTA MECÁNICO
-                let workHtml = o.workNotes || '---';
-                let statusHtml = `<span class="badge bg-warn">${o.status}</span>`;
-                let actionHtml = '';
+                // Lógica Visual según Rol
+                let bitacora = o.observacionesMecanico || '<em style="color:#999">Sin registros</em>';
+                let estadoBadge = `<span class="badge ${o.idEstado==='Terminado'?'bg-done':'bg-pending'}">${o.idEstado}</span>`;
+                let accion = '';
 
-                if(user.role === 'mecanico') {
-                    workHtml = `<textarea id="note-${o.id}">${o.workNotes}</textarea>`;
-                    statusHtml = `
-                        <select id="stat-${o.id}">
-                            <option ${o.status==='Pendiente'?'selected':''}>Pendiente</option>
-                            <option ${o.status==='En Proceso'?'selected':''}>En Proceso</option>
-                            <option ${o.status==='Terminado'?'selected':''}>Terminado</option>
-                        </select>`;
-                    actionHtml = `<button onclick="saveWork(${o.id})" class="btn btn-success">💾 Guardar</button>`;
-                } else if(user.role === 'admin') {
-                    actionHtml = `<button onclick="del(${o.id})" class="btn btn-danger">X</button>`;
+                if(user.rol === 3) { // VISTA MECÁNICO
+                    bitacora = `<textarea id="txt-${o.id}" placeholder="Describir trabajo...">${o.observacionesMecanico || ''}</textarea>`;
+                    estadoBadge = `<select id="est-${o.id}">
+                        <option ${o.idEstado=='Pendiente'?'selected':''}>Pendiente</option>
+                        <option ${o.idEstado=='En Proceso'?'selected':''}>En Proceso</option>
+                        <option ${o.idEstado=='Terminado'?'selected':''}>Terminado</option>
+                    </select>`;
+                    accion = `<button onclick="save(${o.id})" class="btn btn-success btn-sm">Guardar</button>`;
+                } else if (user.rol === 1) { // VISTA ADMIN
+                    accion = `<button onclick="del(${o.id})" class="btn btn-danger btn-sm">Eliminar</button>`;
                 }
 
-                tbody.innerHTML += `
-                    <tr>
-                        <td><strong>${client.vehiculo}</strong><br>${client.nombre}</td>
-                        <td>${o.falla}</td>
-                        <td>${workHtml}</td>
-                        <td>${statusHtml}</td>
-                        <td>${actionHtml}</td>
-                    </tr>
-                `;
+                tbody.innerHTML += `<tr>
+                    <td>#${o.id}</td>
+                    <td><b>${v.modelo}</b><br><small>${v.placas}</small></td>
+                    <td>${o.falla}</td>
+                    <td>${bitacora}</td>
+                    <td>${estadoBadge}</td>
+                    <td>${accion}</td>
+                </tr>`;
             });
         }
 
-        document.getElementById('formOrder').addEventListener('submit', (e) => {
+        document.getElementById('formOrd').onsubmit = (e) => {
             e.preventDefault();
             APP.DAO.createOrder({
-                clientId: document.getElementById('clientSel').value,
+                idVehiculo: document.getElementById('selCli').value,
                 falla: document.getElementById('falla').value
             });
-            e.target.reset(); render();
-        });
-
-        window.saveWork = (id) => {
-            const notes = document.getElementById(`note-${id}`).value;
-            const status = document.getElementById(`stat-${id}`).value;
-            APP.DAO.updateOrder(id, { workNotes: notes, status: status });
-            alert('Avance guardado'); render();
+            render(); e.target.reset();
         };
 
-        window.del = (id) => { if(confirm('Borrar orden?')) { APP.DAO.deleteOrder(id); render(); } };
+        window.save = (id) => {
+            APP.DAO.updateOrderMechanic(
+                id, 
+                document.getElementById(`txt-${id}`).value,
+                document.getElementById(`est-${id}`).value
+            );
+            alert('Avance registrado correctamente'); render();
+        };
+
+        window.del = (id) => {
+            if(confirm('¿Eliminar esta orden?')) { APP.DAO.deleteOrder(id); render(); }
+        };
+        
         render();
     </script>
 </body>

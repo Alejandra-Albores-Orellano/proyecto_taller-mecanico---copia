@@ -8,17 +8,31 @@
 <body>
     <div id="sidebar"></div>
     <div id="main-content">
-        <h1>Bienvenido al Sistema</h1>
-        <div class="row">
-            <div class="col"><div class="card"><h3>Órdenes Activas</h3><p id="count-orders">0</p></div></div>
-            <div class="col"><div class="card"><h3>Clientes</h3><p id="count-clients">0</p></div></div>
+        <h2>Panel de Control</h2>
+        <div class="form-row">
+            <div class="card card-accent form-col">
+                <h3>Órdenes Pendientes</h3>
+                <h1 id="kpi-ord" style="font-size:3rem; margin:10px 0; color:#e67e22">0</h1>
+                <small>Requieren atención</small>
+            </div>
+            <div class="card card-accent form-col">
+                <h3>Clientes Registrados</h3>
+                <h1 id="kpi-cli" style="font-size:3rem; margin:10px 0; color:#3498db">0</h1>
+                <small>Base de datos activa</small>
+            </div>
+            <div class="card card-accent form-col">
+                <h3>Alertas Inventario</h3>
+                <h1 id="kpi-stk" style="font-size:3rem; margin:10px 0; color:#e74c3c">0</h1>
+                <small>Refacciones con stock bajo</small>
+            </div>
         </div>
     </div>
     <script src="js/app.js"></script>
     <script>
         APP.checkAuth();
-        document.getElementById('count-orders').innerText = APP.DAO.getOrders().length;
-        document.getElementById('count-clients').innerText = APP.DAO.getClients().length;
+        document.getElementById('kpi-ord').innerText = APP.DAO.getOrders().filter(o => o.idEstado !== 'Terminado').length;
+        document.getElementById('kpi-cli').innerText = APP.DAO.getClients().length;
+        document.getElementById('kpi-stk').innerText = APP.DAO.getInventory().filter(i => i.stock <= i.min).length;
     </script>
 </body>
 </html>

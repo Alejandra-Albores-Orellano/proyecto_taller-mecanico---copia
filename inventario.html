@@ -8,24 +8,20 @@
 <body>
     <div id="sidebar"></div>
     <div id="main-content">
-        <h2>Inventario</h2>
-        <div class="card" id="formCard">
-            <form id="formInv">
-                <div class="row">
-                    <input type="text" id="sku" placeholder="SKU" required>
-                    <input type="text" id="nom" placeholder="Producto" required>
-                </div>
-                <div class="row">
-                    <input type="number" id="stock" placeholder="Stock" required>
-                    <input type="number" id="min" placeholder="Mínimo" required>
-                    <input type="number" id="price" placeholder="Precio" required>
-                </div>
-                <button type="submit" class="btn btn-primary">Agregar</button>
+        <h2>Control de Inventario</h2>
+        <div class="card">
+            <form id="formInv" class="form-row">
+                <input class="form-col" type="text" id="sku" placeholder="SKU" required>
+                <input class="form-col" type="text" id="nom" placeholder="Producto" required>
+                <input class="form-col" type="number" id="stk" placeholder="Stock" required>
+                <input class="form-col" type="number" id="min" placeholder="Mínimo" required>
+                <input class="form-col" type="number" id="pre" placeholder="Precio" required>
+                <button class="btn btn-primary">Agregar</button>
             </form>
         </div>
         <div class="card">
             <table>
-                <thead><tr><th>SKU</th><th>Producto</th><th>Stock</th><th>Estado</th><th>Acción</th></tr></thead>
+                <thead><tr><th>SKU</th><th>Refacción</th><th>Stock Actual</th><th>Estado</th><th>Precio</th></tr></thead>
                 <tbody id="tbody"></tbody>
             </table>
         </div>
@@ -33,35 +29,26 @@
     <script src="js/app.js"></script>
     <script>
         APP.checkAuth();
-        const user = APP.getSession();
-        if(user.role === 'mecanico') document.getElementById('formCard').style.display = 'none';
-
         function render() {
             const tbody = document.getElementById('tbody');
+            const inv = APP.DAO.getInventory();
             tbody.innerHTML = '';
-            APP.DAO.getInventory().forEach(p => {
-                const stock = parseInt(p.stock);
-                const min = parseInt(p.min);
-                let status = stock <= min ? '<span style="color:red; font-weight:bold">BAJO STOCK</span>' : 'OK';
-                const btn = user.role === 'admin' ? `<button onclick="del(${p.id})" class="btn btn-danger">X</button>` : '';
-                
-                tbody.innerHTML += `<tr><td>${p.sku}</td><td>${p.nombre}</td><td>${stock}</td><td>${status}</td><td>${btn}</td></tr>`;
+            inv.forEach(i => {
+                const status = i.stock <= i.min ? '<span class="badge btn-danger">BAJO STOCK</span>' : '<span class="badge btn-success">OK</span>';
+                tbody.innerHTML += `<tr><td>${i.sku}</td><td>${i.nombre}</td><td>${i.stock}</td><td>${status}</td><td>$${i.precio}</td></tr>`;
             });
         }
-
-        document.getElementById('formInv').addEventListener('submit', (e) => {
+        document.getElementById('formInv').onsubmit = (e) => {
             e.preventDefault();
             APP.DAO.createProduct({
                 sku: document.getElementById('sku').value,
                 nombre: document.getElementById('nom').value,
-                stock: document.getElementById('stock').value,
+                stock: document.getElementById('stk').value,
                 min: document.getElementById('min').value,
-                precio: document.getElementById('price').value
+                precio: document.getElementById('pre').value
             });
             e.target.reset(); render();
-        });
-
-        window.del = (id) => { if(confirm('Borrar?')) { APP.DAO.deleteProduct(id); render(); } };
+        };
         render();
     </script>
 </body>

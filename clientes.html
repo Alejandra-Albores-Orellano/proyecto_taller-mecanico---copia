@@ -8,55 +8,60 @@
 <body>
     <div id="sidebar"></div>
     <div id="main-content">
-        <h2>Gestión de Clientes</h2>
-        <div class="card" id="formCard">
-            <h3>Nuevo Cliente</h3>
-            <form id="formClient">
-                <div class="row">
-                    <input type="text" id="nom" placeholder="Nombre Completo" required>
-                    <input type="tel" id="tel" placeholder="Teléfono" required>
+        <h2>Gestión de Clientes y Vehículos</h2>
+        
+        <div class="card">
+            <h3>Registrar Nuevo Cliente</h3>
+            <form id="formCli">
+                <div class="form-row">
+                    <div class="form-col"><label>Nombre Completo</label><input type="text" id="nom" required></div>
+                    <div class="form-col"><label>Teléfono</label><input type="text" id="tel" required></div>
                 </div>
-                <div class="row">
-                    <input type="text" id="veh" placeholder="Vehículo (Marca Modelo)" required>
-                    <input type="text" id="pla" placeholder="Placas" required>
+                <h4 style="margin-top:20px; color:#7f8c8d">Datos del Vehículo</h4>
+                <div class="form-row">
+                    <div class="form-col"><label>Marca y Modelo</label><input type="text" id="mod" required></div>
+                    <div class="form-col"><label>Placas (Únicas)</label><input type="text" id="pla" required></div>
+                    <div class="form-col"><label>Color</label><input type="text" id="col" required></div>
                 </div>
-                <button type="submit" class="btn btn-primary">Guardar</button>
+                <button class="btn btn-primary" style="margin-top:20px">Guardar Registro</button>
             </form>
         </div>
+
         <div class="card">
+            <h3>Directorio</h3>
             <table>
-                <thead><tr><th>Nombre</th><th>Teléfono</th><th>Vehículo</th><th>Placas</th><th>Acciones</th></tr></thead>
-                <tbody id="tableBody"></tbody>
+                <thead><tr><th>Cliente</th><th>Teléfono</th><th>Vehículo</th><th>Placas</th></tr></thead>
+                <tbody id="tbody"></tbody>
             </table>
         </div>
     </div>
     <script src="js/app.js"></script>
     <script>
         APP.checkAuth();
-        const user = APP.getSession();
-        if(user.role === 'mecanico') document.getElementById('formCard').style.display = 'none';
-
         function render() {
-            const tbody = document.getElementById('tableBody');
+            const list = APP.DAO.getClients();
+            const vehs = APP.DAO.getVehicles();
+            const tbody = document.getElementById('tbody');
             tbody.innerHTML = '';
-            APP.DAO.getClients().forEach(c => {
-                const btnDel = user.role === 'admin' ? `<button onclick="del(${c.id})" class="btn btn-danger">X</button>` : '';
-                tbody.innerHTML += `<tr><td>${c.nombre}</td><td>${c.telefono}</td><td>${c.vehiculo}</td><td>${c.placas}</td><td>${btnDel}</td></tr>`;
+            list.forEach(c => {
+                const v = vehs.find(x => x.idCliente === c.id) || {};
+                tbody.innerHTML += `<tr><td>${c.nombre}</td><td>${c.telefono}</td><td>${v.modelo} (${v.color})</td><td><span class="badge bg-process">${v.placas}</span></td></tr>`;
             });
         }
-
-        document.getElementById('formClient').addEventListener('submit', (e) => {
+        document.getElementById('formCli').onsubmit = (e) => {
             e.preventDefault();
-            APP.DAO.createClient({
+            const cli = APP.DAO.createClient({ 
                 nombre: document.getElementById('nom').value,
-                telefono: document.getElementById('tel').value,
-                vehiculo: document.getElementById('veh').value,
-                placas: document.getElementById('pla').value
+                telefono: document.getElementById('tel').value 
+            });
+            APP.DAO.createVehicle({ 
+                idCliente: cli.id, 
+                modelo: document.getElementById('mod').value, 
+                placas: document.getElementById('pla').value,
+                color: document.getElementById('col').value
             });
             e.target.reset(); render();
-        });
-
-        window.del = (id) => { if(confirm('Borrar?')) { APP.DAO.deleteClient(id); render(); } };
+        };
         render();
     </script>
 </body>

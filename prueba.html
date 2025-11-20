@@ -4,107 +4,85 @@
     <meta charset="UTF-8">
     <title>QA Testing</title>
     <link rel="stylesheet" href="css/estilos.css">
-    <style>
-        .pass { color: var(--success); font-weight: bold; }
-        .fail { color: var(--danger); font-weight: bold; }
-        .log-box { background: #1e272e; color: #ccc; padding: 15px; font-family: monospace; border-radius: 5px; height: 400px; overflow-y: auto; }
-    </style>
+    <style>.console { background:#2c3e50; color:#ecf0f1; padding:15px; font-family:monospace; height:400px; overflow-y:auto; border-radius:4px; }</style>
 </head>
 <body>
     <div id="sidebar"></div>
     <div id="main-content">
-        <h2>Módulo de Pruebas (Unitarias e Integración)</h2>
-        <button onclick="runTests()" class="btn btn-primary">Ejecutar Suite de Pruebas</button>
+        <h2>Módulo de Pruebas (QA)</h2>
+        <p>Ejecución de Pruebas Unitarias (10 Casos) e Integración de Sistema.</p>
+        <button class="btn btn-primary" onclick="runTests()">EJECUTAR SUITE DE PRUEBAS</button>
         <br><br>
-        <div class="card">
-            <div id="console" class="log-box">Esperando ejecución...</div>
-        </div>
+        <div class="console" id="log">Esperando ejecución...</div>
     </div>
     <script src="js/app.js"></script>
     <script>
         APP.checkAuth();
-        const log = (msg, type='info') => {
-            const el = document.getElementById('console');
-            const color = type === 'pass' ? '#2ecc71' : type === 'fail' ? '#e74c3c' : '#bdc3c7';
-            el.innerHTML += `<div style="color:${color}">> ${msg}</div>`;
-            el.scrollTop = el.scrollHeight;
-        };
-
-        function assert(condition, testName) {
-            if(condition) log(`[PASS] ${testName}`, 'pass');
-            else log(`[FAIL] ${testName}`, 'fail');
+        
+        function logger(msg, type) {
+            const l = document.getElementById('log');
+            const color = type ? '#2ecc71' : '#e74c3c'; // Verde o Rojo
+            const icon = type ? '✔ PASS' : '✖ FAIL';
+            l.innerHTML += `<div style="color:${color}; margin-bottom:5px;">[${icon}] ${msg}</div>`;
+            l.scrollTop = l.scrollHeight;
         }
 
         function runTests() {
-            document.getElementById('console').innerHTML = '';
-            log('INICIANDO PRUEBAS UNITARIAS (Min. 10 Casos)...');
-
-            // 1. Test Login Admin
-            assert(APP.login('admin', '123') === true, 'Login Admin correcto');
-            
-            // 2. Test Login Fallido
-            assert(APP.login('admin', 'wrong') === false, 'Login Contraseña incorrecta detectada');
-
-            // 3. Crear Cliente
-            const client = APP.DAO.createClient({ nombre: 'Test User', vehiculo: 'Test Car' });
-            assert(client.id !== undefined, 'Creación de Cliente retorna objeto con ID');
-
-            // 4. Leer Clientes
-            const clients = APP.DAO.getClients();
-            assert(clients.length > 0, 'Lectura de Clientes retorna array con datos');
-
-            // 5. Crear Producto
-            APP.DAO.createProduct({ sku: 'TEST-01', stock: 10 });
-            const inv = APP.DAO.getInventory();
-            assert(inv.find(p => p.sku === 'TEST-01') !== undefined, 'Producto creado en inventario');
-
-            // 6. Crear Orden
-            const order = APP.DAO.createOrder({ clientId: client.id, falla: 'Falla Test' });
-            assert(order.status === 'Pendiente', 'Orden creada con estado inicial Pendiente');
-
-            // 7. Update Orden (Mecánico flow)
-            APP.DAO.updateOrder(order.id, { status: 'En Proceso', workNotes: 'Trabajando' });
-            const updatedOrder = APP.DAO.getOrders().find(o => o.id === order.id);
-            assert(updatedOrder.status === 'En Proceso', 'Actualización de estado de orden correcta');
-
-            // 8. Verificar notas mecánico
-            assert(updatedOrder.workNotes === 'Trabajando', 'Notas de mecánico guardadas correctamente');
-
-            // 9. Borrar Orden
-            APP.DAO.deleteOrder(order.id);
-            assert(APP.DAO.getOrders().find(o => o.id === order.id) === undefined, 'Eliminación de orden correcta');
-
-            // 10. Borrar Cliente
-            APP.DAO.deleteClient(client.id);
-            assert(APP.DAO.getClients().find(c => c.id === client.id) === undefined, 'Eliminación de cliente correcta');
-
-            log('------------------------------------------------');
-            log('INICIANDO PRUEBA DE INTEGRACIÓN (Flujo Completo)...');
+            document.getElementById('log').innerHTML = 'INICIANDO PRUEBAS...<br>-----------------------<br>';
             
             try {
-                // Paso A: Recepción crea cliente
-                const flowClient = APP.DAO.createClient({ nombre: 'Integration User', vehiculo: 'Ford' });
-                log('1. Cliente registrado');
+                // PRUEBAS UNITARIAS (Componentes individuales)
+                logger('1. Auth: Login Admin correcto', APP.login('admin', '123') === true);
+                logger('2. Auth: Login Contraseña incorrecta rechazada', APP.login('admin', 'xxx') === false);
                 
-                // Paso B: Recepción crea orden
-                const flowOrder = APP.DAO.createOrder({ clientId: flowClient.id, falla: 'Motor' });
-                log('2. Orden generada');
+                const cli = APP.DAO.createClient({ nombre: 'Test QA', telefono: '555' });
+                logger('3. CRUD Cliente: Creación exitosa', cli.id !== undefined);
                 
-                // Paso C: Mecánico actualiza
-                APP.DAO.updateOrder(flowOrder.id, { status: 'Terminado' });
-                log('3. Mecánico finalizó trabajo');
+                const veh = APP.DAO.createVehicle({ idCliente: cli.id, modelo: 'QA Car', placas: 'QA-01' });
+                logger('4. CRUD Vehículo: Creación exitosa', veh.id !== undefined);
                 
-                // Paso D: Verificar final
-                const finalCheck = APP.DAO.getOrders().find(o => o.id === flowOrder.id);
+                const inv = APP.DAO.createProduct({ sku: 'QA-PART', stock: 10, min: 2 });
+                logger('5. CRUD Inventario: Creación exitosa', inv.id !== undefined);
                 
-                assert(finalCheck.status === 'Terminado' && finalCheck.clientId === flowClient.id, 'Flujo completo Cliente->Orden->Mecánico verificado');
+                const ord = APP.DAO.createOrder({ idVehiculo: veh.id, falla: 'Falla Test' });
+                logger('6. Orden: Estado inicial es "Pendiente"', ord.idEstado === 'Pendiente');
                 
-                // Limpieza
-                APP.DAO.deleteClient(flowClient.id);
-                APP.DAO.deleteOrder(flowOrder.id);
+                // Simular Mecánico
+                const update = APP.DAO.updateOrderMechanic(ord.id, 'Trabajo QA', 'En Proceso');
+                logger('7. Lógica Mecánico: Actualización permitida', update === true);
+                
+                const ordCheck = APP.DAO.getOrders().find(o => o.id === ord.id);
+                logger('8. Persistencia: Estado cambiado a "En Proceso"', ordCheck.idEstado === 'En Proceso');
+                
+                APP.DAO.deleteOrder(ord.id);
+                const delCheck = APP.DAO.getOrders().find(o => o.id === ord.id);
+                logger('9. Admin: Eliminación de orden correcta', delCheck === undefined);
+
+                const stockCheck = APP.DAO.getInventory();
+                logger('10. Inventario: Lectura de datos correcta', stockCheck.length > 0);
+
+                // PRUEBA DE INTEGRACIÓN (Flujo Completo)
+                document.getElementById('log').innerHTML += '<br>PRUEBA DE INTEGRACIÓN<br>-----------------------<br>';
+                
+                // Flujo: Recepción Crea -> Mecánico Repara -> Sistema verifica
+                const iCli = APP.DAO.createClient({nombre: 'Integration'});
+                const iVeh = APP.DAO.createVehicle({idCliente: iCli.id, modelo: 'IntCar', placas: 'INT-99'});
+                const iOrd = APP.DAO.createOrder({idVehiculo: iVeh.id, falla: 'Ruido Motor'});
+                
+                APP.DAO.updateOrderMechanic(iOrd.id, 'Motor Reparado', 'Terminado');
+                
+                const finalOrd = APP.DAO.getOrders().find(o => o.id === iOrd.id);
+                
+                const integracionExitosa = (
+                    finalOrd.idVehiculo === iVeh.id && 
+                    finalOrd.idEstado === 'Terminado' && 
+                    finalOrd.observacionesMecanico === 'Motor Reparado'
+                );
+                
+                logger('FLUJO COMPLETO: Cliente -> Vehículo -> Orden -> Reparación -> Cierre', integracionExitosa);
 
             } catch(e) {
-                log('Error en integración: ' + e.message, 'fail');
+                logger('Error Crítico en Pruebas: ' + e.message, false);
             }
         }
     </script>

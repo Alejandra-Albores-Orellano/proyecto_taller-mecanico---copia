@@ -1,47 +1,49 @@
 const APP = {
+    // Configuración de Roles
     ROLES: {
-        ADMIN: { id: 'admin', nombre: 'Jefe Taller', accessLevel: 3 },
-        RECEPCION: { id: 'recepcion', nombre: 'Recepción', accessLevel: 2 },
-        MECANICO: { id: 'mecanico', nombre: 'Mecánico', accessLevel: 1 }
+        ADMIN: { id: 1, nombre: 'Administrador', perm: 'all' },
+        RECEPCION: { id: 2, nombre: 'Recepción', perm: 'create_orders' },
+        MECANICO: { id: 3, nombre: 'Mecánico', perm: 'execute_orders' }
     },
 
-    // --- INICIALIZACIÓN DE DATOS (SEED) ---
+    // --- 1. INICIALIZACIÓN DE BASE DE DATOS SIMULADA ---
     initDB: function() {
-        if(!localStorage.getItem('st_users')) {
-            const users = [
-                { user: 'admin', pass: '123', nombre: 'Ing. Trujillo', role: 'admin' },
-                { user: 'recepcion', pass: '123', nombre: 'Abril Guzmán', role: 'recepcion' },
-                { user: 'mecanico', pass: '123', nombre: 'José Herrera', role: 'mecanico' }
+        // Si no existen datos, crear estructura base (Semilla)
+        if(!localStorage.getItem('st_init')) {
+            const usuarios = [
+                { id: 1, user: 'admin', pass: '123', nombre: 'Ing. Trujillo', rol: 1 },
+                { id: 2, user: 'recepcion', pass: '123', nombre: 'Abril Guzmán', rol: 2 },
+                { id: 3, user: 'mecanico', pass: '123', nombre: 'José Herrera', rol: 3 }
             ];
-            localStorage.setItem('st_users', JSON.stringify(users));
-        }
-        if(!localStorage.getItem('st_clients')) localStorage.setItem('st_clients', JSON.stringify([]));
-        if(!localStorage.getItem('st_orders')) localStorage.setItem('st_orders', JSON.stringify([]));
-        if(!localStorage.getItem('st_inventory')) {
-            localStorage.setItem('st_inventory', JSON.stringify([
-                { id: 1, sku: 'ACE-001', nombre: 'Aceite 5W-30', precio: 450, stock: 10, min: 5 },
-                { id: 2, sku: 'FIL-002', nombre: 'Filtro Aire', precio: 150, stock: 2, min: 5 }
+            // Tablas basadas en DER
+            localStorage.setItem('st_usuarios', JSON.stringify(usuarios));
+            localStorage.setItem('st_clientes', JSON.stringify([]));
+            localStorage.setItem('st_vehiculos', JSON.stringify([]));
+            localStorage.setItem('st_ordenes', JSON.stringify([])); // Tabla OrdenDeTrabajo
+            localStorage.setItem('st_asignaciones', JSON.stringify([])); // Tabla AsignacionOrden
+            localStorage.setItem('st_refacciones', JSON.stringify([
+                { id: 1, sku: 'ACE-01', nombre: 'Aceite Sintético', stock: 20, min: 5, precio: 450 },
+                { id: 2, sku: 'FIL-01', nombre: 'Filtro Aire', stock: 3, min: 5, precio: 150 }
             ]));
+            localStorage.setItem('st_init', 'true');
         }
     },
 
-    // --- AUTENTICACIÓN Y SEGURIDAD ---
+    // --- 2. AUTENTICACIÓN ---
     getSession: () => JSON.parse(sessionStorage.getItem('st_session')),
     
     checkAuth: function() {
         this.initDB();
-        const session = this.getSession();
-        if(!session && !window.location.pathname.includes('login.html')) {
-            window.location.href = 'login.html';
-        }
-        if(session) this.renderSidebar(session);
+        const s = this.getSession();
+        if(!s && !location.pathname.includes('login.html')) location.href = 'login.html';
+        if(s) this.renderSidebar(s);
     },
 
     login: function(u, p) {
-        const users = JSON.parse(localStorage.getItem('st_users'));
-        const found = users.find(user => user.user === u && user.pass === p);
-        if(found) {
-            sessionStorage.setItem('st_session', JSON.stringify(found));
+        const users = JSON.parse(localStorage.getItem('st_usuarios'));
+        const user = users.find(x => x.user === u && x.pass === p);
+        if(user) {
+            sessionStorage.setItem('st_session', JSON.stringify(user));
             return true;
         }
         return false;
@@ -49,97 +51,120 @@ const APP = {
 
     logout: function() {
         sessionStorage.removeItem('st_session');
-        window.location.href = 'login.html';
+        location.href = 'login.html';
     },
 
-    // --- UI HELPERS ---
+    // --- 3. INTERFAZ DE USUARIO (UI) ---
     renderSidebar: function(user) {
-        const sidebar = document.getElementById('sidebar');
-        if(!sidebar) return;
+        const sb = document.getElementById('sidebar');
+        if(!sb) return;
         
-        const roleLabel = this.ROLES[user.role.toUpperCase()].nombre;
+        const rolName = Object.values(this.ROLES).find(r => r.id === user.rol).nombre;
         
-        // Lógica de Menú según Rol
         let menu = `<a href="index.html">📊 Dashboard</a>`;
-        
-        if(user.role !== 'mecanico') {
-            menu += `<a href="clientes.html">👥 Clientes</a>`;
-        }
-        
+        if(user.rol !== 3) menu += `<a href="clientes.html">👥 Clientes</a>`; // Mecánico no gestiona clientes
         menu += `<a href="ordenes.html">🔧 Órdenes</a>`;
         menu += `<a href="inventario.html">📦 Inventario</a>`;
         
-        if(user.role === 'admin') {
+        if(user.rol === 1) {
             menu += `<a href="reportes.html">📈 Reportes</a>`;
-            menu += `<a href="pruebas.html" style="color:#f1c40f">🧪 Pruebas (QA)</a>`;
+            menu += `<a href="pruebas.html" style="color:#f1c40f">🧪 Pruebas QA</a>`;
         }
 
-        sidebar.innerHTML = `
+        sb.innerHTML = `
             <div class="brand">ServiTaller</div>
             <div class="user-info">
-                <strong>${user.nombre}</strong><br><small>${roleLabel}</small>
+                <strong>${user.nombre}</strong><br><small>${rolName}</small>
             </div>
             <nav>${menu}</nav>
-            <nav><a href="#" onclick="APP.logout()" style="color:var(--danger)">🚪 Salir</a></nav>
+            <nav style="margin-top:auto"><a href="#" onclick="APP.logout()" style="color:#e74c3c">🚪 Cerrar Sesión</a></nav>
         `;
     },
 
-    // --- MÓDULOS CRUD (Data Access Object Pattern) ---
+    // --- 4. DAO (Data Access Object) - CRUD ---
     DAO: {
-        // CLIENTES (Create, Read, Delete)
+        // CLIENTES
         createClient: (data) => {
-            const db = JSON.parse(localStorage.getItem('st_clients')) || [];
+            const db = JSON.parse(localStorage.getItem('st_clientes'));
             data.id = Date.now();
             db.push(data);
-            localStorage.setItem('st_clients', JSON.stringify(db));
+            localStorage.setItem('st_clientes', JSON.stringify(db));
             return data;
         },
-        getClients: () => JSON.parse(localStorage.getItem('st_clients')) || [],
-        deleteClient: (id) => {
-            let db = JSON.parse(localStorage.getItem('st_clients'));
-            db = db.filter(c => c.id !== id);
-            localStorage.setItem('st_clients', JSON.stringify(db));
-        },
-
-        // ORDENES (Create, Update, Read, Delete)
-        createOrder: (data) => {
-            const db = JSON.parse(localStorage.getItem('st_orders')) || [];
-            data.id = Date.now(); // ID único
-            data.status = 'Pendiente';
-            data.workNotes = ''; // Notas del mecánico
+        getClients: () => JSON.parse(localStorage.getItem('st_clientes')),
+        
+        // VEHÍCULOS
+        createVehicle: (data) => {
+            const db = JSON.parse(localStorage.getItem('st_vehiculos'));
+            data.id = Date.now() + 1;
             db.push(data);
-            localStorage.setItem('st_orders', JSON.stringify(db));
+            localStorage.setItem('st_vehiculos', JSON.stringify(db));
             return data;
         },
-        getOrders: () => JSON.parse(localStorage.getItem('st_orders')) || [],
-        updateOrder: (id, updates) => {
-            const db = JSON.parse(localStorage.getItem('st_orders'));
-            const idx = db.findIndex(o => o.id === id);
-            if(idx !== -1) {
-                db[idx] = { ...db[idx], ...updates }; // Merge updates
-                localStorage.setItem('st_orders', JSON.stringify(db));
+        getVehicles: () => JSON.parse(localStorage.getItem('st_vehiculos')),
+
+        // ÓRDENES DE TRABAJO (Estructura Compleja según DER)
+        createOrder: (data) => {
+            const db = JSON.parse(localStorage.getItem('st_ordenes'));
+            const order = {
+                id: Date.now(),
+                idVehiculo: data.idVehiculo,
+                idEstado: 'Pendiente', // EstadoGeneral
+                falla: data.falla,     // Parte de Recepción
+                fecha: new Date().toISOString().split('T')[0],
+                monto: 0
+            };
+            db.push(order);
+            localStorage.setItem('st_ordenes', JSON.stringify(db));
+            
+            // Crear Asignación Vacía (Tabla AsignacionOrden)
+            const asigs = JSON.parse(localStorage.getItem('st_asignaciones'));
+            asigs.push({ idOrden: order.id, idMecanico: null, observaciones: '' });
+            localStorage.setItem('st_asignaciones', JSON.stringify(asigs));
+            
+            return order;
+        },
+        getOrders: () => {
+            const orders = JSON.parse(localStorage.getItem('st_ordenes'));
+            const asigs = JSON.parse(localStorage.getItem('st_asignaciones'));
+            // JOIN simulado
+            return orders.map(o => {
+                const a = asigs.find(x => x.idOrden === o.id) || {};
+                return { ...o, observacionesMecanico: a.observaciones };
+            });
+        },
+        updateOrderMechanic: (idOrden, obs, nuevoEstado) => {
+            // Actualizar Orden (Estado)
+            const orders = JSON.parse(localStorage.getItem('st_ordenes'));
+            const idxO = orders.findIndex(o => o.id === idOrden);
+            if(idxO > -1) {
+                orders[idxO].idEstado = nuevoEstado;
+                localStorage.setItem('st_ordenes', JSON.stringify(orders));
+            }
+            // Actualizar Asignacion (Bitácora)
+            const asigs = JSON.parse(localStorage.getItem('st_asignaciones'));
+            const idxA = asigs.findIndex(a => a.idOrden === idOrden);
+            if(idxA > -1) {
+                asigs[idxA].observaciones = obs;
+                localStorage.setItem('st_asignaciones', JSON.stringify(asigs));
                 return true;
             }
             return false;
         },
         deleteOrder: (id) => {
-            let db = JSON.parse(localStorage.getItem('st_orders'));
+            let db = JSON.parse(localStorage.getItem('st_ordenes'));
             db = db.filter(o => o.id !== id);
-            localStorage.setItem('st_orders', JSON.stringify(db));
+            localStorage.setItem('st_ordenes', JSON.stringify(db));
         },
 
         // INVENTARIO
-        createProduct: (data) => {
-            const db = JSON.parse(localStorage.getItem('st_inventory')) || [];
-            data.id = Date.now();
-            db.push(data);
-            localStorage.setItem('st_inventory', JSON.stringify(db));
-        },
-        getInventory: () => JSON.parse(localStorage.getItem('st_inventory')) || [],
-        deleteProduct: (id) => {
-            let db = JSON.parse(localStorage.getItem('st_inventory'));
-            db = db.filter(p => p.id !== id);
-            localStorage.setItem('st_inventory', JSON.stringify(db));
+        getInventory: () => JSON.parse(localStorage.getItem('st_refacciones')),
+        createProduct: (p) => {
+            const db = JSON.parse(localStorage.getItem('st_refacciones'));
+            p.id = Date.now();
+            db.push(p);
+            localStorage.setItem('st_refacciones', JSON.stringify(db));
+            return p;
         }
     }
 };
