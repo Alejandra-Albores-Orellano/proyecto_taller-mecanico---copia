@@ -17,6 +17,7 @@ const APP = {
                 { id: 3, user: 'mecanico', pass: '123', nombre: 'José Herrera', rol: 3 }
             ];
             localStorage.setItem('st_usuarios', JSON.stringify(usuarios));
+            // ... (Resto de inicializaciones se mantienen igual)
             localStorage.setItem('st_clientes', JSON.stringify([]));
             localStorage.setItem('st_vehiculos', JSON.stringify([]));
             localStorage.setItem('st_ordenes', JSON.stringify([])); 
@@ -66,8 +67,10 @@ const APP = {
         menu += `<a href="ordenes.html">🔧 Órdenes</a>`;
         menu += `<a href="inventario.html">📦 Inventario</a>`;
         
+        // SOLO EL ADMINISTRADOR VE ESTOS ENLACES
         if(user.rol === 1) {
             menu += `<a href="reportes.html">📈 Reportes</a>`;
+            menu += `<a href="usuarios.html" style="color:#3498db">🔐 Usuarios</a>`; // Nuevo enlace
             menu += `<a href="pruebas.html" style="color:#f1c40f">🧪 Pruebas QA</a>`;
         }
 
@@ -83,7 +86,35 @@ const APP = {
 
     // --- 4. DAO (Data Access Object) - CRUD ---
     DAO: {
-        // CLIENTES
+        // --- USUARIOS (NUEVO MÓDULO) ---
+        getUsers: () => JSON.parse(localStorage.getItem('st_usuarios')),
+        
+        createUser: (data) => {
+            let db = JSON.parse(localStorage.getItem('st_usuarios'));
+            // Validar que usuario no exista
+            if(db.find(u => u.user === data.user)) {
+                return { success: false, msg: 'El nombre de usuario ya existe.' };
+            }
+            data.id = Date.now();
+            db.push(data);
+            localStorage.setItem('st_usuarios', JSON.stringify(db));
+            return { success: true, msg: 'Usuario creado correctamente.' };
+        },
+
+        deleteUser: (id) => {
+            let db = JSON.parse(localStorage.getItem('st_usuarios'));
+            // Evitar que el admin se borre a sí mismo (Seguridad)
+            const session = APP.getSession();
+            if(id === session.id) {
+                return { success: false, msg: 'No puedes eliminar tu propia cuenta.' };
+            }
+            
+            const newDb = db.filter(u => u.id !== id);
+            localStorage.setItem('st_usuarios', JSON.stringify(newDb));
+            return { success: true, msg: 'Usuario eliminado.' };
+        },
+
+        // --- OTROS MÓDULOS (Se mantienen igual) ---
         createClient: (data) => {
             const db = JSON.parse(localStorage.getItem('st_clientes'));
             data.id = Date.now();
@@ -93,7 +124,6 @@ const APP = {
         },
         getClients: () => JSON.parse(localStorage.getItem('st_clientes')),
         
-        // VEHÍCULOS
         createVehicle: (data) => {
             const db = JSON.parse(localStorage.getItem('st_vehiculos'));
             data.id = Date.now() + 1;
@@ -103,7 +133,6 @@ const APP = {
         },
         getVehicles: () => JSON.parse(localStorage.getItem('st_vehiculos')),
 
-        // ÓRDENES
         createOrder: (data) => {
             const db = JSON.parse(localStorage.getItem('st_ordenes'));
             const order = {
@@ -120,7 +149,6 @@ const APP = {
             const asigs = JSON.parse(localStorage.getItem('st_asignaciones'));
             asigs.push({ idOrden: order.id, idMecanico: null, observaciones: '' });
             localStorage.setItem('st_asignaciones', JSON.stringify(asigs));
-            
             return order;
         },
         getOrders: () => {
@@ -153,31 +181,21 @@ const APP = {
             localStorage.setItem('st_ordenes', JSON.stringify(db));
         },
 
-        // --- CORRECCIÓN EN INVENTARIO ---
         getInventory: () => JSON.parse(localStorage.getItem('st_refacciones')),
         
         createProduct: (p) => {
             let db = JSON.parse(localStorage.getItem('st_refacciones')) || [];
-            
-            // 1. BUSCAR SI YA EXISTE EL SKU
             const index = db.findIndex(item => item.sku === p.sku);
 
             if (index !== -1) {
-                // >>> SI EXISTE: ACTUALIZAR (Sumar stock) <<<
-                
-                // Sumamos el stock actual más el nuevo ingreso
                 const nuevoStock = parseInt(db[index].stock) + parseInt(p.stock);
                 db[index].stock = nuevoStock;
-
-                // Actualizamos otros campos por si cambiaron (precio, nombre)
                 db[index].nombre = p.nombre;
                 db[index].precio = p.precio;
                 db[index].min = p.min;
-
                 localStorage.setItem('st_refacciones', JSON.stringify(db));
                 return { status: 'updated', data: db[index] };
             } else {
-                // >>> NO EXISTE: CREAR NUEVO <<<
                 p.id = Date.now();
                 db.push(p);
                 localStorage.setItem('st_refacciones', JSON.stringify(db));

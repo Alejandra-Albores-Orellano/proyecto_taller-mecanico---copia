@@ -2,75 +2,134 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Usuarios</title>
+    <title>Gestión de Usuarios</title>
     <link rel="stylesheet" href="css/estilos.css">
 </head>
 <body>
     <div id="sidebar"></div>
     <div id="main-content">
-        <h2>Gestión de Usuarios</h2>
-        <div class="card">
-            <h3>Nuevo Usuario</h3>
-            <form id="formUsr">
+        <h2>Gestión de Usuarios y Permisos</h2>
+        
+        <div class="card" style="border-top: 3px solid #3498db;">
+            <h3>Registrar Nuevo Usuario</h3>
+            <form id="formUser">
                 <div class="form-row">
-                    <div class="form-group"><input type="text" id="name" placeholder="Nombre" required></div>
-                    <div class="form-group"><input type="text" id="user" placeholder="Login" required></div>
-                    <div class="form-group"><input type="password" id="pass" placeholder="Password" required></div>
-                    <div class="form-group">
-                        <select id="rol">
-                            <option value="mecanico">Mecánico</option>
-                            <option value="recepcion">Recepción</option>
-                            <option value="admin">Admin</option>
+                    <div class="form-col">
+                        <label>Nombre Completo</label>
+                        <input type="text" id="nombre" required>
+                    </div>
+                    <div class="form-col">
+                        <label>Usuario (Login)</label>
+                        <input type="text" id="user" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label>Contraseña</label>
+                        <input type="password" id="pass" required>
+                    </div>
+                    <div class="form-col">
+                        <label>Rol / Permisos</label>
+                        <select id="rol" required>
+                            <option value="1">Administrador (Acceso Total)</option>
+                            <option value="2">Recepción (Crear Órdenes)</option>
+                            <option value="3">Mecánico (Ejecutar Órdenes)</option>
                         </select>
                     </div>
                 </div>
-                <button class="btn btn-primary">Crear</button>
+                <button class="btn btn-primary" style="margin-top: 20px;">Crear Usuario</button>
             </form>
         </div>
+
         <div class="card">
+            <h3>Usuarios Activos</h3>
             <table>
-                <thead><tr><th>Nombre</th><th>User</th><th>Rol</th><th>Acción</th></tr></thead>
-                <tbody id="tbl"></tbody>
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Usuario</th>
+                        <th>Rol</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody"></tbody>
             </table>
         </div>
     </div>
+
     <script src="js/app.js"></script>
     <script>
-        SYSTEM.checkSecurity();
-        if(SYSTEM.getActiveUser().role !== 'admin') window.location.href = 'index.html';
+        APP.checkAuth();
+        const session = APP.getSession();
 
-        const render = () => {
-            const db = JSON.parse(localStorage.getItem('sv_users'));
-            const tbody = document.getElementById('tbl');
+        // 1. SEGURIDAD: Si no es Admin, lo saca de la página
+        if (session.rol !== 1) {
+            alert('Acceso denegado: Se requieren permisos de Administrador.');
+            window.location.href = 'index.html';
+        }
+
+        function render() {
+            const tbody = document.getElementById('tbody');
+            const users = APP.DAO.getUsers();
             tbody.innerHTML = '';
-            db.forEach((u, i) => {
-                tbody.innerHTML += `<tr><td>${u.name}</td><td>${u.user}</td><td>${u.role}</td>
-                <td><button onclick="del(${i})" class="btn btn-danger" style="padding:4px">X</button></td></tr>`;
-            });
-        };
 
-        document.getElementById('formUsr').addEventListener('submit', e => {
+            users.forEach(u => {
+                // Convertir ID de rol a nombre
+                let roleName = '';
+                if(u.rol === 1) roleName = '<span class="badge" style="background:#2c3e50">Administrador</span>';
+                else if(u.rol === 2) roleName = '<span class="badge" style="background:#e67e22">Recepción</span>';
+                else if(u.rol === 3) roleName = '<span class="badge" style="background:#7f8c8d">Mecánico</span>';
+
+                // Botón de eliminar (No mostrarse para uno mismo)
+                let deleteBtn = '';
+                if (u.id !== session.id) {
+                    deleteBtn = `<button onclick="del(${u.id})" class="btn btn-danger btn-sm">Eliminar</button>`;
+                } else {
+                    deleteBtn = `<small style="color:#ccc">Sesión Actual</small>`;
+                }
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${u.nombre}</td>
+                        <td><b>${u.user}</b></td>
+                        <td>${roleName}</td>
+                        <td>${deleteBtn}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        // CREAR USUARIO
+        document.getElementById('formUser').onsubmit = (e) => {
             e.preventDefault();
-            const db = JSON.parse(localStorage.getItem('sv_users'));
-            db.push({
-                name: document.getElementById('name').value,
+            const res = APP.DAO.createUser({
+                nombre: document.getElementById('nombre').value,
                 user: document.getElementById('user').value,
                 pass: document.getElementById('pass').value,
-                role: document.getElementById('rol').value
+                rol: parseInt(document.getElementById('rol').value)
             });
-            localStorage.setItem('sv_users', JSON.stringify(db));
-            render(); e.target.reset();
-        });
 
-        window.del = i => {
-            const db = JSON.parse(localStorage.getItem('sv_users'));
-            if(db[i].user === SYSTEM.getActiveUser().user) return alert('No te puedes borrar a ti mismo');
-            if(confirm('Eliminar?')) {
-                db.splice(i, 1);
-                localStorage.setItem('sv_users', JSON.stringify(db));
+            if(res.success) {
+                alert(res.msg);
+                e.target.reset();
                 render();
+            } else {
+                alert('Error: ' + res.msg);
             }
         };
+
+        // ELIMINAR USUARIO
+        window.del = (id) => {
+            if(confirm('¿Está seguro de eliminar este usuario? Esta acción no se puede deshacer.')) {
+                const res = APP.DAO.deleteUser(id);
+                if(res.success) {
+                    render();
+                } else {
+                    alert(res.msg);
+                }
+            }
+        };
+
         render();
     </script>
 </body>
