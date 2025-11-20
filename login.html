@@ -5,30 +5,27 @@
     <title>Login - ServiTaller</title>
     <link rel="stylesheet" href="css/estilos.css">
 </head>
-<body class="login-body">
-    <div class="login-card">
-        <h2 style="border:none; color:var(--primary)">ServiTaller</h2>
-        <p style="color:#95a5a6; margin-bottom:30px">Sistema de Gestión Integral</p>
+<body class="login-page">
+    <div class="card" style="width: 350px; text-align: center;">
+        <h2>ServiTaller</h2>
+        <p>Sistema de Gestión Integral</p>
         <form id="loginForm">
-            <input type="text" id="u" placeholder="Usuario" style="margin-bottom:15px" required>
-            <input type="password" id="p" placeholder="Contraseña" style="margin-bottom:20px" required>
-            <button type="submit" class="btn btn-primary" style="width:100%">Iniciar Sesión</button>
+            <input type="text" id="user" placeholder="Usuario" required>
+            <input type="password" id="pass" placeholder="Contraseña" required>
+            <button type="submit" class="btn btn-primary" style="width:100%">Ingresar</button>
         </form>
-        <div style="margin-top:20px; font-size:0.8rem; color:#bdc3c7; text-align:left">
-            Usuarios Demo:<br>
-            admin / 123 (Jefe)<br>
-            abril / 123 (Recepción)<br>
-            jose / 123 (Mecánico)
+        <div style="margin-top:15px; font-size:0.8rem; color:#777; text-align:left;">
+            <p><strong>Credenciales (Demo):</strong><br>Admin: admin/123<br>Recepción: recepcion/123<br>Mecánico: mecanico/123</p>
         </div>
     </div>
     <script src="js/app.js"></script>
     <script>
-        SYSTEM.init();
-        document.getElementById('loginForm').addEventListener('submit', e => {
+        APP.initDB();
+        document.getElementById('loginForm').addEventListener('submit', (e) => {
             e.preventDefault();
-            if(SYSTEM.login(document.getElementById('u').value, document.getElementById('p').value)){
+            if(APP.login(document.getElementById('user').value, document.getElementById('pass').value)) {
                 window.location.href = 'index.html';
-            } else { alert('Datos incorrectos'); }
+            } else { alert('Credenciales incorrectas'); }
         });
     </script>
 </body>

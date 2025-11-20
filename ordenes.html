@@ -9,114 +9,96 @@
     <div id="sidebar"></div>
     <div id="main-content">
         <h2>Órdenes de Trabajo</h2>
-
-        <div class="card form-creation-container">
-            <h3>Nueva Orden</h3>
-            <form id="formOrd">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Seleccionar Cliente</label>
-                        <select id="cliSel" required></select>
-                    </div>
-                    <div class="form-group">
-                        <label>Servicio</label>
-                        <select id="svc">
-                            <option>Mantenimiento</option>
-                            <option>Diagnóstico</option>
-                            <option>Reparación</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Descripción de Falla</label>
-                    <textarea id="desc" rows="2" required></textarea>
-                </div>
+        
+        <div class="card" id="createCard">
+            <h3>Crear Orden</h3>
+            <form id="formOrder">
+                <select id="clientSel" required><option value="">Seleccione Cliente...</option></select>
+                <textarea id="falla" placeholder="Descripción de la falla (Recepción)" required></textarea>
                 <button type="submit" class="btn btn-primary">Generar Orden</button>
             </form>
         </div>
 
         <div class="card">
-            <h3>Seguimiento</h3>
             <table>
-                <thead><tr><th># Orden</th><th>Cliente</th><th>Vehículo</th><th>Falla</th><th>Estado</th><th>Acción</th></tr></thead>
-                <tbody id="tbl"></tbody>
+                <thead>
+                    <tr>
+                        <th>Cliente / Vehículo</th>
+                        <th>Falla (Recepción)</th>
+                        <th>Trabajo Realizado (Mecánico)</th>
+                        <th>Estado</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
             </table>
         </div>
     </div>
     <script src="js/app.js"></script>
     <script>
-        SYSTEM.checkSecurity();
-        const activeUser = SYSTEM.getActiveUser();
+        APP.checkAuth();
+        const user = APP.getSession();
 
-        // Cargar select de clientes
-        const clients = JSON.parse(localStorage.getItem('sv_clientes')||'[]');
-        const sel = document.getElementById('cliSel');
-        clients.forEach(c => {
-            const opt = document.createElement('option');
-            opt.value = c.nombre + '|' + c.auto; // Guardamos ambos datos simple
-            opt.text = c.nombre + ' - ' + c.auto;
-            sel.appendChild(opt);
-        });
+        if(user.role === 'mecanico') document.getElementById('createCard').style.display = 'none';
 
-        const render = () => {
-            const db = JSON.parse(localStorage.getItem('sv_ordenes')||'[]');
-            const tbody = document.getElementById('tbl');
+        // Cargar Select
+        const clients = APP.DAO.getClients();
+        const sel = document.getElementById('clientSel');
+        clients.forEach(c => sel.innerHTML += `<option value="${c.id}">${c.nombre} - ${c.vehiculo}</option>`);
+
+        function render() {
+            const tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
-            
-            db.forEach((o, i) => {
-                // Lógica de Estado: Mecánico ve Select, otros ven Texto (o Select si admin)
-                let statusHTML = `<span class="badge st-${o.estado.toLowerCase()}">${o.estado}</span>`;
+            APP.DAO.getOrders().forEach(o => {
+                const client = clients.find(c => c.id == o.clientId) || { nombre: 'Desconocido', vehiculo: '?' };
                 
-                // Si es mecánico o admin, permitimos cambiar estado
-                if(activeUser.role === 'mecanico' || activeUser.role === 'admin') {
-                    statusHTML = `
-                        <select onchange="updStat(${i}, this.value)" style="padding:4px; font-size:0.85rem">
-                            <option ${o.estado=='Pendiente'?'selected':''}>Pendiente</option>
-                            <option ${o.estado=='Proceso'?'selected':''}>Proceso</option>
-                            <option ${o.estado=='Terminado'?'selected':''}>Terminado</option>
-                        </select>
-                    `;
+                // VISTA MECÁNICO
+                let workHtml = o.workNotes || '---';
+                let statusHtml = `<span class="badge bg-warn">${o.status}</span>`;
+                let actionHtml = '';
+
+                if(user.role === 'mecanico') {
+                    workHtml = `<textarea id="note-${o.id}">${o.workNotes}</textarea>`;
+                    statusHtml = `
+                        <select id="stat-${o.id}">
+                            <option ${o.status==='Pendiente'?'selected':''}>Pendiente</option>
+                            <option ${o.status==='En Proceso'?'selected':''}>En Proceso</option>
+                            <option ${o.status==='Terminado'?'selected':''}>Terminado</option>
+                        </select>`;
+                    actionHtml = `<button onclick="saveWork(${o.id})" class="btn btn-success">💾 Guardar</button>`;
+                } else if(user.role === 'admin') {
+                    actionHtml = `<button onclick="del(${o.id})" class="btn btn-danger">X</button>`;
                 }
 
-                tbody.innerHTML += `<tr>
-                    <td>#${o.id}</td><td>${o.cliente}</td><td>${o.auto}</td><td>${o.falla}</td>
-                    <td>${statusHTML}</td>
-                    <td><button onclick="del(${i})" class="btn btn-danger btn-delete" style="padding:4px">X</button></td>
-                </tr>`;
+                tbody.innerHTML += `
+                    <tr>
+                        <td><strong>${client.vehiculo}</strong><br>${client.nombre}</td>
+                        <td>${o.falla}</td>
+                        <td>${workHtml}</td>
+                        <td>${statusHtml}</td>
+                        <td>${actionHtml}</td>
+                    </tr>
+                `;
             });
-            SYSTEM.applyUIRestrictions(activeUser);
-        };
+        }
 
-        document.getElementById('formOrd').addEventListener('submit', e => {
+        document.getElementById('formOrder').addEventListener('submit', (e) => {
             e.preventDefault();
-            const [cli, car] = document.getElementById('cliSel').value.split('|');
-            const data = {
-                id: Math.floor(Math.random()*10000),
-                cliente: cli,
-                auto: car,
-                falla: document.getElementById('svc').value + ': ' + document.getElementById('desc').value,
-                estado: 'Pendiente'
-            };
-            const db = JSON.parse(localStorage.getItem('sv_ordenes')||'[]');
-            db.push(data);
-            localStorage.setItem('sv_ordenes', JSON.stringify(db));
-            render(); e.target.reset();
+            APP.DAO.createOrder({
+                clientId: document.getElementById('clientSel').value,
+                falla: document.getElementById('falla').value
+            });
+            e.target.reset(); render();
         });
 
-        window.updStat = (i, val) => {
-            const db = JSON.parse(localStorage.getItem('sv_ordenes'));
-            db[i].estado = val;
-            localStorage.setItem('sv_ordenes', JSON.stringify(db));
+        window.saveWork = (id) => {
+            const notes = document.getElementById(`note-${id}`).value;
+            const status = document.getElementById(`stat-${id}`).value;
+            APP.DAO.updateOrder(id, { workNotes: notes, status: status });
+            alert('Avance guardado'); render();
         };
 
-        window.del = i => {
-            if(confirm('Eliminar?')) {
-                const db = JSON.parse(localStorage.getItem('sv_ordenes'));
-                db.splice(i, 1);
-                localStorage.setItem('sv_ordenes', JSON.stringify(db));
-                render();
-            }
-        };
+        window.del = (id) => { if(confirm('Borrar orden?')) { APP.DAO.deleteOrder(id); render(); } };
         render();
     </script>
 </body>

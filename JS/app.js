@@ -1,132 +1,145 @@
-// js/app.js
-
-const SYSTEM = {
-    // 1. Definición de Permisos por Rol
+const APP = {
     ROLES: {
-        admin: { nombre: 'Jefe de Taller', access: ['all'], canDelete: true },
-        recepcion: { nombre: 'Recepción', access: ['index', 'clientes', 'ordenes', 'inventario'], canDelete: false },
-        mecanico: { nombre: 'Mecánico', access: ['index', 'ordenes', 'inventario'], canDelete: false, readOnlyForms: true }
+        ADMIN: { id: 'admin', nombre: 'Jefe Taller', accessLevel: 3 },
+        RECEPCION: { id: 'recepcion', nombre: 'Recepción', accessLevel: 2 },
+        MECANICO: { id: 'mecanico', nombre: 'Mecánico', accessLevel: 1 }
     },
 
-    // 2. Inicializar BD Simulada
-    init: function() {
-        if (!localStorage.getItem('sv_users')) {
+    // --- INICIALIZACIÓN DE DATOS (SEED) ---
+    initDB: function() {
+        if(!localStorage.getItem('st_users')) {
             const users = [
-                { user: 'admin', pass: '123', name: 'Ing. Trujillo', role: 'admin' },
-                { user: 'abril', pass: '123', name: 'Abril Guzmán', role: 'recepcion' },
-                { user: 'jose', pass: '123', name: 'José Herrera', role: 'mecanico' }
+                { user: 'admin', pass: '123', nombre: 'Ing. Trujillo', role: 'admin' },
+                { user: 'recepcion', pass: '123', nombre: 'Abril Guzmán', role: 'recepcion' },
+                { user: 'mecanico', pass: '123', nombre: 'José Herrera', role: 'mecanico' }
             ];
-            localStorage.setItem('sv_users', JSON.stringify(users));
-            
-            // Datos dummy iniciales para ver la interfaz llena
-            localStorage.setItem('sv_clientes', JSON.stringify([{ id:1, nombre:'Juan Perez', auto:'Nissan Versa', placa:'XYZ-123', tel:'9611234567' }]));
-            localStorage.setItem('sv_ordenes', JSON.stringify([{ id:1001, cliente:'Juan Perez', auto:'Nissan Versa', falla:'Cambio de aceite', estado:'Pendiente' }]));
-            localStorage.setItem('sv_inventario', JSON.stringify([{ sku:'ACE01', nombre:'Aceite 5W30', stock:20, min:5, precio:450 }]));
+            localStorage.setItem('st_users', JSON.stringify(users));
+        }
+        if(!localStorage.getItem('st_clients')) localStorage.setItem('st_clients', JSON.stringify([]));
+        if(!localStorage.getItem('st_orders')) localStorage.setItem('st_orders', JSON.stringify([]));
+        if(!localStorage.getItem('st_inventory')) {
+            localStorage.setItem('st_inventory', JSON.stringify([
+                { id: 1, sku: 'ACE-001', nombre: 'Aceite 5W-30', precio: 450, stock: 10, min: 5 },
+                { id: 2, sku: 'FIL-002', nombre: 'Filtro Aire', precio: 150, stock: 2, min: 5 }
+            ]));
         }
     },
 
-    // 3. Gestión de Sesión
+    // --- AUTENTICACIÓN Y SEGURIDAD ---
+    getSession: () => JSON.parse(sessionStorage.getItem('st_session')),
+    
+    checkAuth: function() {
+        this.initDB();
+        const session = this.getSession();
+        if(!session && !window.location.pathname.includes('login.html')) {
+            window.location.href = 'login.html';
+        }
+        if(session) this.renderSidebar(session);
+    },
+
     login: function(u, p) {
-        const users = JSON.parse(localStorage.getItem('sv_users'));
-        const found = users.find(usr => usr.user === u && usr.pass === p);
-        if (found) {
-            sessionStorage.setItem('sv_active', JSON.stringify(found));
+        const users = JSON.parse(localStorage.getItem('st_users'));
+        const found = users.find(user => user.user === u && user.pass === p);
+        if(found) {
+            sessionStorage.setItem('st_session', JSON.stringify(found));
             return true;
         }
         return false;
     },
 
     logout: function() {
-        sessionStorage.removeItem('sv_active');
+        sessionStorage.removeItem('st_session');
         window.location.href = 'login.html';
     },
 
-    getActiveUser: function() {
-        return JSON.parse(sessionStorage.getItem('sv_active'));
-    },
-
-    // 4. Seguridad y Renderizado de Interfaz
-    checkSecurity: function() {
-        this.init();
-        const user = this.getActiveUser();
-        const path = window.location.pathname;
-        const page = path.split("/").pop() || 'index.html';
-
-        // Si no hay usuario y no es login, fuera
-        if (!user && !path.includes('login.html')) {
-            window.location.href = 'login.html';
-            return;
-        }
-
-        // Si hay usuario y es login, al index
-        if (user && path.includes('login.html')) {
-            window.location.href = 'index.html';
-            return;
-        }
-
-        if (user) {
-            const roleConfig = this.ROLES[user.role];
-
-            // Restricción de acceso a páginas completas
-            if (!roleConfig.access.includes('all') && !roleConfig.access.some(p => page.includes(p))) {
-                alert('Acceso Denegado: No tienes permisos para esta sección.');
-                window.location.href = 'index.html';
-                return;
-            }
-
-            this.renderSidebar(user);
-            this.applyUIRestrictions(user);
-        }
-    },
-
-    // Renderiza menú según permisos
+    // --- UI HELPERS ---
     renderSidebar: function(user) {
-        const el = document.getElementById('sidebar');
-        if (!el) return;
-
-        const roleName = this.ROLES[user.role].nombre;
-        const access = this.ROLES[user.role].access;
-        const isAdmin = user.role === 'admin';
-
-        let html = `
-            <div class="brand">ServiTaller</div>
-            <div class="user-panel">
-                <strong>${user.name}</strong><br>
-                <small>${roleName}</small>
-            </div>
-            <nav>
-                <a href="index.html" class="${window.location.href.includes('index')?'active':''}">📊 Dashboard</a>`;
-
-        if (isAdmin || access.includes('clientes')) 
-            html += `<a href="clientes.html" class="${window.location.href.includes('clientes')?'active':''}">👥 Clientes</a>`;
+        const sidebar = document.getElementById('sidebar');
+        if(!sidebar) return;
         
-        if (isAdmin || access.includes('ordenes')) 
-            html += `<a href="ordenes.html" class="${window.location.href.includes('ordenes')?'active':''}">🔧 Órdenes</a>`;
+        const roleLabel = this.ROLES[user.role.toUpperCase()].nombre;
         
-        if (isAdmin || access.includes('inventario')) 
-            html += `<a href="inventario.html" class="${window.location.href.includes('inventario')?'active':''}">📦 Inventario</a>`;
+        // Lógica de Menú según Rol
+        let menu = `<a href="index.html">📊 Dashboard</a>`;
         
-        if (isAdmin) {
-            html += `<a href="reportes.html" class="${window.location.href.includes('reportes')?'active':''}">📈 Reportes</a>`;
-            html += `<a href="usuarios.html" class="${window.location.href.includes('usuarios')?'active':''}">🔐 Usuarios</a>`;
+        if(user.role !== 'mecanico') {
+            menu += `<a href="clientes.html">👥 Clientes</a>`;
+        }
+        
+        menu += `<a href="ordenes.html">🔧 Órdenes</a>`;
+        menu += `<a href="inventario.html">📦 Inventario</a>`;
+        
+        if(user.role === 'admin') {
+            menu += `<a href="reportes.html">📈 Reportes</a>`;
+            menu += `<a href="pruebas.html" style="color:#f1c40f">🧪 Pruebas (QA)</a>`;
         }
 
-        html += `<a href="#" onclick="SYSTEM.logout()" class="logout">🚪 Salir</a></nav>`;
-        el.innerHTML = html;
+        sidebar.innerHTML = `
+            <div class="brand">ServiTaller</div>
+            <div class="user-info">
+                <strong>${user.nombre}</strong><br><small>${roleLabel}</small>
+            </div>
+            <nav>${menu}</nav>
+            <nav><a href="#" onclick="APP.logout()" style="color:var(--danger)">🚪 Salir</a></nav>
+        `;
     },
 
-    // Oculta botones según reglas de negocio
-    applyUIRestrictions: function(user) {
-        const roleConfig = this.ROLES[user.role];
+    // --- MÓDULOS CRUD (Data Access Object Pattern) ---
+    DAO: {
+        // CLIENTES (Create, Read, Delete)
+        createClient: (data) => {
+            const db = JSON.parse(localStorage.getItem('st_clients')) || [];
+            data.id = Date.now();
+            db.push(data);
+            localStorage.setItem('st_clients', JSON.stringify(db));
+            return data;
+        },
+        getClients: () => JSON.parse(localStorage.getItem('st_clients')) || [],
+        deleteClient: (id) => {
+            let db = JSON.parse(localStorage.getItem('st_clients'));
+            db = db.filter(c => c.id !== id);
+            localStorage.setItem('st_clients', JSON.stringify(db));
+        },
 
-        // 1. Si no puede borrar, ocultar botones ".btn-delete"
-        if (!roleConfig.canDelete) {
-            document.querySelectorAll('.btn-delete').forEach(btn => btn.style.display = 'none');
-        }
+        // ORDENES (Create, Update, Read, Delete)
+        createOrder: (data) => {
+            const db = JSON.parse(localStorage.getItem('st_orders')) || [];
+            data.id = Date.now(); // ID único
+            data.status = 'Pendiente';
+            data.workNotes = ''; // Notas del mecánico
+            db.push(data);
+            localStorage.setItem('st_orders', JSON.stringify(db));
+            return data;
+        },
+        getOrders: () => JSON.parse(localStorage.getItem('st_orders')) || [],
+        updateOrder: (id, updates) => {
+            const db = JSON.parse(localStorage.getItem('st_orders'));
+            const idx = db.findIndex(o => o.id === id);
+            if(idx !== -1) {
+                db[idx] = { ...db[idx], ...updates }; // Merge updates
+                localStorage.setItem('st_orders', JSON.stringify(db));
+                return true;
+            }
+            return false;
+        },
+        deleteOrder: (id) => {
+            let db = JSON.parse(localStorage.getItem('st_orders'));
+            db = db.filter(o => o.id !== id);
+            localStorage.setItem('st_orders', JSON.stringify(db));
+        },
 
-        // 2. Si es Mecánico (solo lectura de formularios), ocultar formularios de creación
-        if (roleConfig.readOnlyForms) {
-            document.querySelectorAll('.form-creation-container').forEach(div => div.style.display = 'none');
+        // INVENTARIO
+        createProduct: (data) => {
+            const db = JSON.parse(localStorage.getItem('st_inventory')) || [];
+            data.id = Date.now();
+            db.push(data);
+            localStorage.setItem('st_inventory', JSON.stringify(db));
+        },
+        getInventory: () => JSON.parse(localStorage.getItem('st_inventory')) || [],
+        deleteProduct: (id) => {
+            let db = JSON.parse(localStorage.getItem('st_inventory'));
+            db = db.filter(p => p.id !== id);
+            localStorage.setItem('st_inventory', JSON.stringify(db));
         }
     }
 };

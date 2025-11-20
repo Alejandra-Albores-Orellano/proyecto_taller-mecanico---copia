@@ -8,51 +8,65 @@
 <body>
     <div id="sidebar"></div>
     <div id="main-content">
-        <h2>Reportes Ejecutivos</h2>
-        <div class="form-row">
-            <div class="card" style="flex:1; text-align:center">
-                <h3>Ingresos Estimados</h3>
-                <h1 style="color:var(--success)" id="ingresos">$0</h1>
-                <small>(Basado en órdenes terminadas)</small>
-            </div>
-            <div class="card" style="flex:1; text-align:center">
-                <h3>Valor Inventario</h3>
-                <h1 style="color:var(--accent)" id="val-inv">$0</h1>
-            </div>
+        <h2>Reportes del Sistema</h2>
+        
+        <div class="row">
+            <div class="col"><div class="card" style="border-left:5px solid #2980b9"><h3>Total Órdenes</h3><h1 id="total-ops">0</h1></div></div>
+            <div class="col"><div class="card" style="border-left:5px solid #27ae60"><h3>Terminadas</h3><h1 id="total-fin">0</h1></div></div>
+            <div class="col"><div class="card" style="border-left:5px solid #e74c3c"><h3>Pendientes</h3><h1 id="total-pen">0</h1></div></div>
         </div>
+
         <div class="card">
-            <h3>Resumen de Órdenes</h3>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h3>Detalle de Operaciones</h3>
+                <select id="filterState" onchange="filterReport()" style="width:200px;">
+                    <option value="all">Todos los estados</option>
+                    <option value="Pendiente">Pendientes</option>
+                    <option value="En Proceso">En Proceso</option>
+                    <option value="Terminado">Terminados</option>
+                </select>
+            </div>
             <table>
-                <thead><tr><th>Estado</th><th>Cantidad</th></tr></thead>
-                <tbody id="tbl-stats"></tbody>
+                <thead><tr><th>ID</th><th>Falla</th><th>Estado</th><th>Fecha</th></tr></thead>
+                <tbody id="reportTable"></tbody>
             </table>
         </div>
     </div>
     <script src="js/app.js"></script>
     <script>
-        SYSTEM.checkSecurity();
-        // Extra Check: Solo admin
-        if(SYSTEM.getActiveUser().role !== 'admin') window.location.href = 'index.html';
-
-        const ord = JSON.parse(localStorage.getItem('sv_ordenes')||'[]');
-        const inv = JSON.parse(localStorage.getItem('sv_inventario')||'[]');
-
-        // Ingresos (Simulado: $1000 por orden terminada)
-        const terminadas = ord.filter(o => o.estado === 'Terminado').length;
-        document.getElementById('ingresos').innerText = '$' + (terminadas * 1000);
-
-        // Valor Inv
-        let totalVal = inv.reduce((acc, item) => acc + (item.stock * item.precio), 0);
-        document.getElementById('val-inv').innerText = '$' + totalVal;
-
-        // Tabla Stats
-        const stats = { Pendiente:0, Proceso:0, Terminado:0 };
-        ord.forEach(o => { if(stats[o.estado] !== undefined) stats[o.estado]++ });
+        APP.checkAuth();
         
-        const tbody = document.getElementById('tbl-stats');
-        for(let k in stats) {
-            tbody.innerHTML += `<tr><td>${k}</td><td>${stats[k]}</td></tr>`;
+        // Restricción: Solo Admin
+        if(APP.getSession().role !== 'admin') {
+            alert('Acceso denegado'); window.location.href = 'index.html';
         }
+
+        function loadStats() {
+            const orders = APP.DAO.getOrders();
+            document.getElementById('total-ops').innerText = orders.length;
+            document.getElementById('total-fin').innerText = orders.filter(o => o.status === 'Terminado').length;
+            document.getElementById('total-pen').innerText = orders.filter(o => o.status === 'Pendiente').length;
+            renderTable(orders);
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('reportTable');
+            tbody.innerHTML = '';
+            data.forEach(o => {
+                tbody.innerHTML += `<tr><td>#${o.id}</td><td>${o.falla}</td><td>${o.status}</td><td>${new Date(o.id).toLocaleDateString()}</td></tr>`;
+            });
+        }
+
+        function filterReport() {
+            const filter = document.getElementById('filterState').value;
+            let orders = APP.DAO.getOrders();
+            if(filter !== 'all') {
+                orders = orders.filter(o => o.status === filter);
+            }
+            renderTable(orders);
+        }
+
+        loadStats();
     </script>
 </body>
 </html>
